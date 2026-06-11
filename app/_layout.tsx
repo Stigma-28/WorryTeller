@@ -7,6 +7,7 @@ import { WorryProvider } from '@/context/WorryContext';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
+    shouldShowList: false,
     shouldPlaySound: false,
     shouldSetBadge: false,
   }),
