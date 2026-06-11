@@ -9,30 +9,73 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/colors';
 import { useWorries } from '@/context/WorryContext';
 
-function chipLabel(text: string) {
-  return text.length > 14 ? text.slice(0, 13) + '…' : text;
+const RESOLVED_IDS_KEY = 'wt_resolved_ids';
+const TODOS_KEY = 'wt_todos';
+
+interface TodoItem {
+  id: string;
+  text: string;
 }
 
 export default function Matrix() {
   const insets = useSafeAreaInsets();
-  const { worries } = useWorries();
+  const { worries, updateWorry, deleteWorry } = useWorries();
 
   const canChangeWorries = worries.filter(w => w.canChange === true);
   const cannotChangeWorries = worries.filter(w => w.canChange === false);
 
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
-  const [todos, setTodos] = useState(['포트폴리오 정리', '자기소개서 작성', '모의 면접 준비']);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [showAddTodo, setShowAddTodo] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteTargetIndex, setDeleteTargetIndex] = useState<number | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [newTodoText, setNewTodoText] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      const [storedIds, storedTodos] = await Promise.all([
+        AsyncStorage.getItem(RESOLVED_IDS_KEY),
+        AsyncStorage.getItem(TODOS_KEY),
+      ]);
+      if (storedIds) setResolvedIds(new Set(JSON.parse(storedIds)));
+      if (storedTodos) {
+        const parsed = JSON.parse(storedTodos);
+        // 기존 string[] 형식 마이그레이션
+        if (parsed.length > 0 && typeof parsed[0] === 'string') {
+          setTodos(parsed.map((text: string, i: number) => ({ id: String(i), text })));
+        } else {
+          setTodos(parsed);
+        }
+      } else {
+        setTodos([
+          { id: '1', text: '포트폴리오 정리' },
+          { id: '2', text: '자기소개서 작성' },
+          { id: '3', text: '모의 면접 준비' },
+        ]);
+      }
+      setLoaded(true);
+    };
+    load();
+  }, []);
+
+  useEffect(() => {
+    if (loaded) AsyncStorage.setItem(RESOLVED_IDS_KEY, JSON.stringify([...resolvedIds]));
+  }, [resolvedIds, loaded]);
+
+  useEffect(() => {
+    if (loaded) AsyncStorage.setItem(TODOS_KEY, JSON.stringify(todos));
+  }, [todos, loaded]);
 
   const toggleResolved = (id: string) => {
     const next = new Set(resolvedIds);
@@ -41,18 +84,58 @@ export default function Matrix() {
     setResolvedIds(next);
   };
 
+  const handleWorryLongPress = (worryId: string, worryText: string) => {
+    Alert.alert('걱정 관리', worryText, [
+      {
+        text: '분류 해제',
+        onPress: () => updateWorry(worryId, { canChange: undefined }),
+      },
+      {
+        text: '걱정 삭제',
+        style: 'destructive',
+        onPress: () => deleteWorry(worryId),
+      },
+      { text: '취소', style: 'cancel' },
+    ]);
+  };
+
   const handleAddTodo = () => {
     if (!newTodoText.trim()) return;
-    setTodos([...todos, newTodoText.trim()]);
+    setTodos([...todos, { id: Date.now().toString(), text: newTodoText.trim() }]);
     setNewTodoText('');
     setShowAddTodo(false);
   };
 
   const handleDeleteTodo = () => {
-    if (deleteTargetIndex === null) return;
-    setTodos(todos.filter((_, i) => i !== deleteTargetIndex));
-    setDeleteTargetIndex(null);
+    if (deleteTargetId === null) return;
+    setTodos(todos.filter(t => t.id !== deleteTargetId));
+    setDeleteTargetId(null);
     setShowDeleteConfirm(false);
+  };
+
+  const renderTodoItem = ({ item, drag, isActive }: RenderItemParams<TodoItem>) => {
+    const index = todos.findIndex(t => t.id === item.id);
+    return (
+    <ScaleDecorator>
+      <View style={[styles.todoRow, index > 0 && styles.todoRowBorder, isActive && styles.todoRowActive]}>
+        <TouchableOpacity onLongPress={drag} delayLongPress={100} hitSlop={8}>
+          <Ionicons name="menu" size={16} color={isActive ? Colors.primary : '#d1d5db'} />
+        </TouchableOpacity>
+        <View style={styles.todoNumber}>
+          <Text style={styles.todoNumberText}>{index + 1}</Text>
+        </View>
+        <Text style={styles.todoText}>{item.text}</Text>
+        <TouchableOpacity
+          onPress={() => {
+            setDeleteTargetId(item.id);
+            setShowDeleteConfirm(true);
+          }}
+        >
+          <Ionicons name="trash-outline" size={16} color={Colors.danger} />
+        </TouchableOpacity>
+      </View>
+    </ScaleDecorator>
+    );
   };
 
   return (
@@ -82,9 +165,11 @@ export default function Matrix() {
                       key={worry.id}
                       style={[styles.chip, resolved && styles.chipResolved]}
                       onPress={() => toggleResolved(worry.id)}
+                      onLongPress={() => handleWorryLongPress(worry.id, worry.text)}
+                      delayLongPress={500}
                     >
                       <Text style={[styles.chipText, resolved && styles.chipTextResolved]}>
-                        {chipLabel(worry.text)}
+                        {worry.text}
                       </Text>
                       <View style={[styles.chipDot, resolved && styles.chipDotResolved]}>
                         {resolved && (
@@ -108,9 +193,15 @@ export default function Matrix() {
             {cannotChangeWorries.length > 0 ? (
               <View style={styles.chipWrap}>
                 {cannotChangeWorries.map(worry => (
-                  <View key={worry.id} style={styles.chipStatic}>
-                    <Text style={styles.chipStaticText}>{chipLabel(worry.text)}</Text>
-                  </View>
+                  <TouchableOpacity
+                    key={worry.id}
+                    style={styles.chipStatic}
+                    onLongPress={() => handleWorryLongPress(worry.id, worry.text)}
+                    delayLongPress={500}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.chipStaticText}>{worry.text}</Text>
+                  </TouchableOpacity>
                 ))}
               </View>
             ) : (
@@ -135,25 +226,14 @@ export default function Matrix() {
             {todos.length === 0 ? (
               <Text style={styles.emptyChipText}>할 일을 추가해보세요</Text>
             ) : (
-              <View style={styles.todoList}>
-                {todos.map((todo, index) => (
-                  <View key={index} style={[styles.todoRow, index > 0 && styles.todoRowBorder]}>
-                    <Ionicons name="menu" size={16} color="#d1d5db" />
-                    <View style={styles.todoNumber}>
-                      <Text style={styles.todoNumberText}>{index + 1}</Text>
-                    </View>
-                    <Text style={styles.todoText}>{todo}</Text>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setDeleteTargetIndex(index);
-                        setShowDeleteConfirm(true);
-                      }}
-                    >
-                      <Ionicons name="trash-outline" size={16} color={Colors.danger} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
+              <DraggableFlatList
+                data={todos}
+                keyExtractor={item => item.id}
+                onDragEnd={({ data }) => setTodos(data)}
+                renderItem={renderTodoItem}
+                scrollEnabled={false}
+                containerStyle={styles.todoList}
+              />
             )}
           </View>
         </View>
@@ -195,7 +275,7 @@ export default function Matrix() {
           style={styles.overlayCenter}
           onPress={() => {
             setShowDeleteConfirm(false);
-            setDeleteTargetIndex(null);
+            setDeleteTargetId(null);
           }}
         >
           <Pressable style={styles.deleteModal} onPress={() => {}}>
@@ -206,7 +286,7 @@ export default function Matrix() {
                 style={styles.cancelBtn}
                 onPress={() => {
                   setShowDeleteConfirm(false);
-                  setDeleteTargetIndex(null);
+                  setDeleteTargetId(null);
                 }}
               >
                 <Text style={styles.cancelBtnText}>취소</Text>
@@ -292,6 +372,7 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 12,
     color: Colors.canChangeText,
+    flexShrink: 1,
   },
   chipTextResolved: {
     color: '#aaaaaa',
@@ -335,6 +416,7 @@ const styles = StyleSheet.create({
   chipStaticText: {
     fontSize: 12,
     color: '#374151',
+    flexShrink: 1,
   },
   emptyChipText: {
     fontSize: 12,
@@ -378,6 +460,10 @@ const styles = StyleSheet.create({
   todoRowBorder: {
     borderTopWidth: 1,
     borderTopColor: '#f3f4f6',
+  },
+  todoRowActive: {
+    backgroundColor: Colors.background,
+    borderRadius: 12,
   },
   todoNumber: {
     width: 24,

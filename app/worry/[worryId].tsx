@@ -7,9 +7,10 @@ import {
   Modal,
   Pressable,
   Image,
+  TextInput,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/colors';
@@ -33,10 +34,21 @@ export default function WorryDetail() {
 
   const insets = useSafeAreaInsets();
   const worry = worryId ? getWorry(worryId) : undefined;
+  const [memoText, setMemoText] = useState(worry?.memo ?? '');
+  const memoTextRef = useRef(memoText);
+  memoTextRef.current = memoText;
 
   useEffect(() => {
     if (!worry) router.replace('/home');
   }, [worry]);
+
+  // 뒤로가기 등 unmount 시 저장
+  useEffect(() => {
+    const id = worryId!;
+    return () => {
+      updateWorry(id, { memo: memoTextRef.current.trim() || undefined });
+    };
+  }, []);
 
   if (!worry) return null;
 
@@ -81,11 +93,21 @@ export default function WorryDetail() {
             </View>
           </View>
           <Text style={styles.dateText}>{formatDate(worry.createdAt)}</Text>
-          {worry.memo && (
-            <View style={styles.memoSection}>
-              <Text style={styles.memoText}>{worry.memo}</Text>
+          <View style={styles.memoSection}>
+            <View style={styles.memoLabelRow}>
+              <Ionicons name="create-outline" size={13} color={Colors.textMuted} />
+              <Text style={styles.memoLabel}>메모</Text>
             </View>
-          )}
+            <TextInput
+              value={memoText}
+              onChangeText={setMemoText}
+              onBlur={() => updateWorry(worry.id, { memo: memoText.trim() || undefined })}
+              placeholder="이 걱정에 대해 더 적어봐요..."
+              placeholderTextColor="#9ca3af"
+              multiline
+              style={styles.memoInput}
+            />
+          </View>
           {worry.photoUri && (
             <TouchableOpacity
               style={styles.photoWrap}
@@ -299,11 +321,23 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#f3f4f6',
+    gap: 6,
   },
-  memoText: {
+  memoLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  memoLabel: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  memoInput: {
     fontSize: 14,
     color: Colors.textSecondary,
     lineHeight: 22,
+    minHeight: 64,
+    textAlignVertical: 'top',
   },
   photoWrap: {
     height: 220,

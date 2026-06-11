@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
@@ -25,6 +25,16 @@ interface WorryContextType {
   setNotificationsEnabled: (enabled: boolean) => void;
   notificationTime: string;
   setNotificationTime: (time: string) => void;
+  customTopics: string[];
+  customEmotions: string[];
+  addCustomTopic: (topic: string) => void;
+  addCustomEmotion: (emotion: string) => void;
+  removedTopics: string[];
+  removedEmotions: string[];
+  removeTopicTag: (tag: string) => void;
+  removeEmotionTag: (tag: string) => void;
+  editTopicTag: (oldTag: string, newTag: string) => void;
+  editEmotionTag: (oldTag: string, newTag: string) => void;
 }
 
 const WorryContext = createContext<WorryContextType | undefined>(undefined);
@@ -32,6 +42,10 @@ const WorryContext = createContext<WorryContextType | undefined>(undefined);
 const STORAGE_KEY = 'wt_worries';
 const NOTIF_ENABLED_KEY = 'wt_notif_enabled';
 const NOTIF_TIME_KEY = 'wt_notif_time';
+const CUSTOM_TOPICS_KEY = 'wt_custom_topics';
+const CUSTOM_EMOTIONS_KEY = 'wt_custom_emotions';
+const REMOVED_TOPICS_KEY = 'wt_removed_topics';
+const REMOVED_EMOTIONS_KEY = 'wt_removed_emotions';
 
 const getSampleWorries = (): Worry[] => {
   const now = new Date();
@@ -149,18 +163,26 @@ const getSampleWorries = (): Worry[] => {
 
 export function WorryProvider({ children }: { children: ReactNode }) {
   const [worries, setWorries] = useState<Worry[]>([]);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationTime, setNotificationTime] = useState('23:00');
+  const [customTopics, setCustomTopics] = useState<string[]>([]);
+  const [customEmotions, setCustomEmotions] = useState<string[]>([]);
+  const [removedTopics, setRemovedTopics] = useState<string[]>([]);
+  const [removedEmotions, setRemovedEmotions] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   // 앱 시작 시 저장된 데이터 로드
   useEffect(() => {
     const loadAll = async () => {
       try {
-        const [storedWorries, storedNotifEnabled, storedNotifTime] = await Promise.all([
+        const [storedWorries, storedNotifEnabled, storedNotifTime, storedTopics, storedEmotions, storedRemovedTopics, storedRemovedEmotions] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEY),
           AsyncStorage.getItem(NOTIF_ENABLED_KEY),
           AsyncStorage.getItem(NOTIF_TIME_KEY),
+          AsyncStorage.getItem(CUSTOM_TOPICS_KEY),
+          AsyncStorage.getItem(CUSTOM_EMOTIONS_KEY),
+          AsyncStorage.getItem(REMOVED_TOPICS_KEY),
+          AsyncStorage.getItem(REMOVED_EMOTIONS_KEY),
         ]);
 
         if (storedWorries) {
@@ -179,6 +201,10 @@ export function WorryProvider({ children }: { children: ReactNode }) {
         if (storedNotifTime) {
           setNotificationTime(storedNotifTime);
         }
+        if (storedTopics) setCustomTopics(JSON.parse(storedTopics));
+        if (storedEmotions) setCustomEmotions(JSON.parse(storedEmotions));
+        if (storedRemovedTopics) setRemovedTopics(JSON.parse(storedRemovedTopics));
+        if (storedRemovedEmotions) setRemovedEmotions(JSON.parse(storedRemovedEmotions));
       } catch {
         setWorries(getSampleWorries());
       }
@@ -207,17 +233,52 @@ export function WorryProvider({ children }: { children: ReactNode }) {
     }
   }, [notificationTime, loaded]);
 
+  useEffect(() => {
+    if (loaded) AsyncStorage.setItem(CUSTOM_TOPICS_KEY, JSON.stringify(customTopics));
+  }, [customTopics, loaded]);
+
+  useEffect(() => {
+    if (loaded) AsyncStorage.setItem(CUSTOM_EMOTIONS_KEY, JSON.stringify(customEmotions));
+  }, [customEmotions, loaded]);
+
+  useEffect(() => {
+    if (loaded) AsyncStorage.setItem(REMOVED_TOPICS_KEY, JSON.stringify(removedTopics));
+  }, [removedTopics, loaded]);
+
+  useEffect(() => {
+    if (loaded) AsyncStorage.setItem(REMOVED_EMOTIONS_KEY, JSON.stringify(removedEmotions));
+  }, [removedEmotions, loaded]);
+
   // 알림 켜기/끄기, 시간 변경 시 스케줄 동기화 (웹 제외)
   useEffect(() => {
     if (!loaded || Platform.OS === 'web') return;
 
     const syncNotifications = async () => {
       if (notificationsEnabled) {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status !== 'granted') {
+        const { status: existingStatus, canAskAgain } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+
+        if (existingStatus !== 'granted') {
+          if (canAskAgain) {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+          } else {
+            // 영구 거부 — 시스템 설정으로 안내
+            setNotificationsEnabled(false);
+            Alert.alert(
+              '알림 권한이 필요해요',
+              '설정 앱 > Worry Teller > 알림에서 직접 허용해주세요.',
+              [{ text: '확인' }]
+            );
+            return;
+          }
+        }
+
+        if (finalStatus !== 'granted') {
           setNotificationsEnabled(false);
           return;
         }
+
         const [h, m] = notificationTime.split(':').map(Number);
         await Notifications.cancelAllScheduledNotificationsAsync();
         await Notifications.scheduleNotificationAsync({
@@ -238,6 +299,52 @@ export function WorryProvider({ children }: { children: ReactNode }) {
 
     syncNotifications();
   }, [notificationsEnabled, notificationTime, loaded]);
+
+  const addCustomTopic = (topic: string) => {
+    setCustomTopics(prev => prev.includes(topic) ? prev : [...prev, topic]);
+  };
+
+  const addCustomEmotion = (emotion: string) => {
+    setCustomEmotions(prev => prev.includes(emotion) ? prev : [...prev, emotion]);
+  };
+
+  const removeTopicTag = (tag: string) => {
+    if (customTopics.includes(tag)) {
+      setCustomTopics(prev => prev.filter(t => t !== tag));
+    } else {
+      setRemovedTopics(prev => prev.includes(tag) ? prev : [...prev, tag]);
+    }
+  };
+
+  const removeEmotionTag = (tag: string) => {
+    if (customEmotions.includes(tag)) {
+      setCustomEmotions(prev => prev.filter(e => e !== tag));
+    } else {
+      setRemovedEmotions(prev => prev.includes(tag) ? prev : [...prev, tag]);
+    }
+  };
+
+  const editTopicTag = (oldTag: string, newTag: string) => {
+    if (!newTag.trim() || newTag === oldTag) return;
+    if (customTopics.includes(oldTag)) {
+      setCustomTopics(prev => prev.map(t => t === oldTag ? newTag : t));
+    } else {
+      setRemovedTopics(prev => [...prev, oldTag]);
+      setCustomTopics(prev => [...prev, newTag]);
+    }
+    setWorries(prev => prev.map(w => w.topic === oldTag ? { ...w, topic: newTag } : w));
+  };
+
+  const editEmotionTag = (oldTag: string, newTag: string) => {
+    if (!newTag.trim() || newTag === oldTag) return;
+    if (customEmotions.includes(oldTag)) {
+      setCustomEmotions(prev => prev.map(e => e === oldTag ? newTag : e));
+    } else {
+      setRemovedEmotions(prev => [...prev, oldTag]);
+      setCustomEmotions(prev => [...prev, newTag]);
+    }
+    setWorries(prev => prev.map(w => w.emotion === oldTag ? { ...w, emotion: newTag } : w));
+  };
 
   const addWorry = (worry: Omit<Worry, 'id' | 'createdAt'>) => {
     const id = Date.now().toString();
@@ -260,6 +367,8 @@ export function WorryProvider({ children }: { children: ReactNode }) {
       worries, addWorry, updateWorry, deleteWorry, getWorry,
       notificationsEnabled, setNotificationsEnabled,
       notificationTime, setNotificationTime,
+      customTopics, customEmotions, addCustomTopic, addCustomEmotion,
+      removedTopics, removedEmotions, removeTopicTag, removeEmotionTag, editTopicTag, editEmotionTag,
     }}>
       {children}
     </WorryContext.Provider>

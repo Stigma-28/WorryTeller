@@ -10,6 +10,7 @@ import {
   TextInput,
   Platform,
   KeyboardAvoidingView,
+  Image,
 } from 'react-native';
 import { useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -252,9 +253,11 @@ export default function Settings() {
             <Text style={styles.modalTitle}>계정 관리</Text>
 
             <View style={styles.accountCard}>
-              <View style={styles.accountAvatar}>
-                <Text style={styles.accountAvatarText}>타로멍{'\n'}자리</Text>
-              </View>
+              <Image
+                source={require('@/assets/images/생각중.png')}
+                style={styles.accountAvatar}
+                resizeMode="contain"
+              />
               <View style={{ flex: 1 }}>
                 <Text style={styles.accountName}>사용자</Text>
                 <Text style={styles.accountEmail}>user@email.com</Text>
@@ -621,21 +624,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   accountAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     borderWidth: 2,
     borderColor: '#d1d5db',
     backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
     flexShrink: 0,
-  },
-  accountAvatarText: {
-    fontSize: 7,
-    color: '#9ca3af',
-    textAlign: 'center',
-    lineHeight: 10,
+    overflow: 'hidden',
   },
   accountName: {
     fontSize: 15,

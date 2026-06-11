@@ -30,9 +30,11 @@ export default function Home() {
         <View style={styles.body}>
           {/* 캐릭터 + 말풍선 */}
           <View style={styles.charRow}>
-            <View style={styles.charCircle}>
-              <Text style={styles.charLabel}>타로멍{'\n'}자리</Text>
-            </View>
+            <Image
+              source={require('@/assets/images/생각중.png')}
+              style={styles.charCircle}
+              resizeMode="contain"
+            />
             <View style={styles.bubble}>
               <Text style={styles.bubbleText}>
                 {topTopic ? `${topTopic} 걱정이 이번 달 가장 많아요` : '오늘 걱정을 기록해봐요 ✦'}
@@ -149,21 +151,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   charCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     borderWidth: 2,
     borderColor: '#d1d5db',
     backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
     flexShrink: 0,
-  },
-  charLabel: {
-    fontSize: 7,
-    color: '#9ca3af',
-    textAlign: 'center',
-    lineHeight: 10,
+    overflow: 'hidden',
   },
   bubble: {
     flex: 1,
