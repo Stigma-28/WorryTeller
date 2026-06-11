@@ -1,62 +1,91 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/colors';
 import { useWorries } from '@/context/WorryContext';
+import { filterThisMonth, filterToday, generateInsights } from '@/utils/insights';
+
+type Period = 'month' | 'today';
 
 export default function Dashboard() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { worries } = useWorries();
+  const [period, setPeriod] = useState<Period>('month');
 
-  const currentMonth = new Date().toLocaleDateString('ko-KR', { month: 'long' });
-  const totalWorries = worries.length;
-  const recurringWorries = worries.filter(w => w.recurring).length;
+  const monthWorries = filterThisMonth(worries);
+  const todayWorries = filterToday(worries);
+  const periodWorries = period === 'month' ? monthWorries : todayWorries;
 
-  const topicCounts = worries.reduce((acc, w) => {
+  // 기간별 통계
+  const totalCount = periodWorries.length;
+  const recurringCount = periodWorries.filter(w => w.recurring).length;
+  const topicCount = new Set(periodWorries.map(w => w.topic)).size;
+
+  // 인사이트 문장들
+  const insights = generateInsights(periodWorries, period);
+
+  // 카테고리 차트 — 항상 이번 달 기준
+  const topicCounts = monthWorries.reduce((acc, w) => {
     acc[w.topic] = (acc[w.topic] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-
-  const topicData = Object.entries(topicCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 4);
-
+  const topicData = Object.entries(topicCounts).sort(([, a], [, b]) => b - a).slice(0, 5);
   const maxTopicCount = Math.max(...topicData.map(([, c]) => c), 1);
 
-  const emotionCounts = worries.reduce((acc, w) => {
+  // 키워드 클라우드 — 항상 이번 달 기준
+  const emotionCounts = monthWorries.reduce((acc, w) => {
     acc[w.emotion] = (acc[w.emotion] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-
-  const keywords = Object.entries(emotionCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 7);
-
+  const keywords = Object.entries(emotionCounts).sort(([, a], [, b]) => b - a).slice(0, 8);
   const maxKeywordCount = Math.max(...keywords.map(([, c]) => c), 1);
 
-  const topTopic = topicData[0]?.[0] || '진로';
-  const topEmotion = keywords[0]?.[0] || '불안';
-  const topicCount = Object.keys(topicCounts).length;
+  const now = new Date();
+  const monthLabel = now.toLocaleDateString('ko-KR', { month: 'long' });
+  const todayLabel = now.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
 
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={[styles.header, { paddingTop: 24 + insets.top }]}>
           <Text style={styles.headerTitle}>나의 걱정 패턴 ✦</Text>
-          <Text style={styles.headerSub}>{currentMonth} · {totalWorries}개 기록</Text>
+          <Text style={styles.headerSub}>
+            {period === 'month' ? `${monthLabel} · ${totalCount}개 기록` : `${todayLabel} · ${totalCount}개 기록`}
+          </Text>
+
+          {/* 기간 토글 */}
+          <View style={styles.toggle}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, period === 'month' && styles.toggleBtnActive]}
+              onPress={() => setPeriod('month')}
+            >
+              <Text style={[styles.toggleText, period === 'month' && styles.toggleTextActive]}>
+                이번 달
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleBtn, period === 'today' && styles.toggleBtnActive]}
+              onPress={() => setPeriod('today')}
+            >
+              <Text style={[styles.toggleText, period === 'today' && styles.toggleTextActive]}>
+                오늘
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.body}>
           {/* 통계 3개 */}
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Text style={[styles.statNumber, { color: Colors.primary }]}>{totalWorries}</Text>
+              <Text style={[styles.statNumber, { color: Colors.primary }]}>{totalCount}</Text>
               <Text style={styles.statLabel}>전체</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={[styles.statNumber, { color: '#f97316' }]}>{recurringWorries}</Text>
+              <Text style={[styles.statNumber, { color: '#f97316' }]}>{recurringCount}</Text>
               <Text style={styles.statLabel}>반복</Text>
             </View>
             <View style={styles.statCard}>
@@ -65,89 +94,107 @@ export default function Dashboard() {
             </View>
           </View>
 
-          {/* AI 인사이트 */}
+          {/* AI 인사이트 카드 */}
           <View style={styles.insightCard}>
             <View style={styles.insightTitleRow}>
               <Ionicons name="sparkles" size={18} color="#ffffff" />
               <Text style={styles.insightTitle}>AI 인사이트</Text>
+              <Text style={styles.insightPeriodBadge}>
+                {period === 'month' ? '이번 달' : '오늘'}
+              </Text>
             </View>
-            <Text style={styles.insightText}>
-              이번 달에는 {topTopic} 걱정이 가장 많이 나타났고, {topEmotion} 감정이 반복되었어요.
-            </Text>
+            {insights.map((text, i) => (
+              <View key={i} style={styles.insightRow}>
+                <Text style={styles.insightBullet}>✦</Text>
+                <Text style={styles.insightText}>{text}</Text>
+              </View>
+            ))}
           </View>
 
-          {/* 카테고리별 빈도 */}
+          {/* 카테고리별 빈도 (이번 달) */}
           <TouchableOpacity
             style={styles.card}
             onPress={() => router.push('/category-detail')}
             activeOpacity={0.85}
           >
             <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>카테고리별 빈도</Text>
+              <View>
+                <Text style={styles.cardTitle}>카테고리별 빈도</Text>
+                <Text style={styles.cardSub}>이번 달 기준</Text>
+              </View>
               <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
             </View>
-            <View style={styles.barList}>
-              {topicData.map(([topic, count]) => (
-                <View key={topic} style={styles.barItem}>
-                  <View style={styles.barLabelRow}>
-                    <Text style={styles.barLabel}>{topic}</Text>
-                    <Text style={styles.barCount}>{count}건</Text>
+            {topicData.length > 0 ? (
+              <View style={styles.barList}>
+                {topicData.map(([topic, count]) => (
+                  <View key={topic} style={styles.barItem}>
+                    <View style={styles.barLabelRow}>
+                      <Text style={styles.barLabel}>{topic}</Text>
+                      <Text style={styles.barCount}>{count}건</Text>
+                    </View>
+                    <View style={styles.barBg}>
+                      <View
+                        style={[styles.barFill, { width: `${(count / maxTopicCount) * 100}%` }]}
+                      />
+                    </View>
                   </View>
-                  <View style={styles.barBg}>
-                    <View
-                      style={[
-                        styles.barFill,
-                        { width: `${(count / maxTopicCount) * 100}%` },
-                      ]}
-                    />
-                  </View>
-                </View>
-              ))}
-            </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>이번 달 기록이 없어요</Text>
+            )}
           </TouchableOpacity>
 
-          {/* 키워드 클라우드 */}
+          {/* 감정 키워드 클라우드 (이번 달) */}
           <TouchableOpacity
             style={styles.card}
             onPress={() => router.push('/keyword-detail')}
             activeOpacity={0.85}
           >
             <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>키워드 클라우드</Text>
+              <View>
+                <Text style={styles.cardTitle}>감정 키워드</Text>
+                <Text style={styles.cardSub}>이번 달 기준</Text>
+              </View>
               <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
             </View>
-            <View style={styles.cloudWrap}>
-              {keywords.map(([keyword, count]) => {
-                const fontSize = 12 + (count / maxKeywordCount) * 16;
-                return (
-                  <Text key={keyword} style={[styles.cloudWord, { fontSize }]}>
-                    {keyword}
-                  </Text>
-                );
-              })}
-            </View>
+            {keywords.length > 0 ? (
+              <View style={styles.cloudWrap}>
+                {keywords.map(([keyword, count]) => {
+                  const fontSize = 12 + (count / maxKeywordCount) * 14;
+                  return (
+                    <Text key={keyword} style={[styles.cloudWord, { fontSize }]}>
+                      {keyword}
+                    </Text>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>이번 달 기록이 없어요</Text>
+            )}
           </TouchableOpacity>
 
           {/* 반복되는 걱정 */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>반복되는 걱정</Text>
-            <View style={styles.recurringList}>
-              {worries.filter(w => w.recurring).slice(0, 3).map(worry => (
-                <TouchableOpacity
-                  key={worry.id}
-                  style={styles.recurringItem}
-                  onPress={() => router.push(`/worry/${worry.id}`)}
-                >
-                  <Text style={styles.recurringText}>{worry.text}</Text>
-                  <View style={styles.topicTag}>
-                    <Text style={styles.topicTagText}>{worry.topic}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-              {worries.filter(w => w.recurring).length === 0 && (
-                <Text style={styles.emptyText}>반복되는 걱정이 없어요</Text>
-              )}
-            </View>
+            {worries.filter(w => w.recurring).length > 0 ? (
+              <View style={styles.recurringList}>
+                {worries.filter(w => w.recurring).slice(0, 3).map(worry => (
+                  <TouchableOpacity
+                    key={worry.id}
+                    style={styles.recurringItem}
+                    onPress={() => router.push(`/worry/${worry.id}`)}
+                  >
+                    <Text style={styles.recurringText}>{worry.text}</Text>
+                    <View style={styles.topicTag}>
+                      <Text style={styles.topicTagText}>{worry.topic}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>반복되는 걱정이 없어요</Text>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -167,7 +214,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 32,
+    paddingBottom: 28,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     gap: 4,
@@ -180,6 +227,30 @@ const styles = StyleSheet.create({
   headerSub: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.7)',
+    marginBottom: 12,
+  },
+  toggle: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 12,
+    padding: 3,
+    alignSelf: 'flex-start',
+  },
+  toggleBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  toggleBtnActive: {
+    backgroundColor: '#ffffff',
+  },
+  toggleText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.7)',
+  },
+  toggleTextActive: {
+    color: Colors.primary,
   },
   body: {
     padding: 24,
@@ -208,22 +279,43 @@ const styles = StyleSheet.create({
   insightCard: {
     backgroundColor: Colors.primary,
     borderRadius: 16,
-    padding: 24,
-    gap: 12,
+    padding: 20,
+    gap: 10,
   },
   insightTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: 2,
   },
   insightTitle: {
     fontSize: 15,
     fontWeight: 'bold',
     color: '#ffffff',
+    flex: 1,
+  },
+  insightPeriodBadge: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.6)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 9999,
+  },
+  insightRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+  },
+  insightBullet: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 4,
   },
   insightText: {
+    flex: 1,
     fontSize: 14,
-    color: 'rgba(255,255,255,0.85)',
+    color: 'rgba(255,255,255,0.9)',
     lineHeight: 22,
   },
   card: {
@@ -241,6 +333,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: Colors.textPrimary,
+  },
+  cardSub: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 2,
   },
   barList: {
     gap: 12,

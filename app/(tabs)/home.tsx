@@ -4,20 +4,34 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/colors';
 import { useWorries } from '@/context/WorryContext';
+import { filterToday, filterThisMonth } from '@/utils/insights';
 
 export default function Home() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { worries, notificationsEnabled, setNotificationsEnabled } = useWorries();
 
-  const recurringCount = worries.filter(w => w.recurring).length;
-  const resolvedCount = worries.filter(w => w.canChange !== undefined).length;
+  const monthWorries = filterThisMonth(worries);
+  const todayWorries = filterToday(worries);
 
-  const topicCounts = worries.reduce((acc, w) => {
+  const recurringCount = monthWorries.filter(w => w.recurring).length;
+  const resolvedCount = monthWorries.filter(w => w.canChange !== undefined).length;
+
+  const topicCounts = monthWorries.reduce((acc, w) => {
     acc[w.topic] = (acc[w.topic] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
   const topTopic = Object.entries(topicCounts).sort(([, a], [, b]) => b - a)[0]?.[0];
+
+  const bubbleText = (() => {
+    if (todayWorries.length > 0) {
+      const todayTopics = [...new Set(todayWorries.map(w => w.topic))];
+      if (todayTopics.length >= 2) return `오늘 ${todayTopics.slice(0, 2).join('·')} 걱정이 있네요`;
+      return `오늘 ${todayTopics[0]} 걱정을 기록했어요`;
+    }
+    if (topTopic) return `${topTopic} 걱정이 이번 달 가장 많아요`;
+    return '오늘 걱정을 기록해봐요 ✦';
+  })();
 
   return (
     <View style={styles.container}>
@@ -30,15 +44,15 @@ export default function Home() {
         <View style={styles.body}>
           {/* 캐릭터 + 말풍선 */}
           <View style={styles.charRow}>
-            <Image
-              source={require('@/assets/images/생각중.png')}
-              style={styles.charCircle}
-              resizeMode="contain"
-            />
+            <View style={styles.charCircle}>
+              <Image
+                source={require('@/assets/images/생각중.png')}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="contain"
+              />
+            </View>
             <View style={styles.bubble}>
-              <Text style={styles.bubbleText}>
-                {topTopic ? `${topTopic} 걱정이 이번 달 가장 많아요` : '오늘 걱정을 기록해봐요 ✦'}
-              </Text>
+              <Text style={styles.bubbleText}>{bubbleText}</Text>
             </View>
           </View>
 
@@ -46,15 +60,15 @@ export default function Home() {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardLabel}>이번 달 기록</Text>
-              <Text style={styles.cardCount}>{worries.length}</Text>
+              <Text style={styles.cardCount}>{monthWorries.length}</Text>
             </View>
-            <Text style={styles.cardSub}>반복 {recurringCount}개 · 해결 {resolvedCount}개</Text>
+            <Text style={styles.cardSub}>반복 {recurringCount}개 · 분류됨 {resolvedCount}개</Text>
             <View style={styles.chipRow}>
               <View style={[styles.chip, styles.chipGreen]}>
                 <Text style={styles.chipGreenText}>반복 {recurringCount}개</Text>
               </View>
               <View style={[styles.chip, styles.chipAmber]}>
-                <Text style={styles.chipAmberText}>해결 {resolvedCount}개</Text>
+                <Text style={styles.chipAmberText}>분류됨 {resolvedCount}개</Text>
               </View>
             </View>
           </View>
@@ -77,6 +91,16 @@ export default function Home() {
                     <View style={styles.emotionTag}>
                       <Text style={styles.emotionTagText}>{worry.emotion}</Text>
                     </View>
+                    {worry.canChange === true && (
+                      <View style={styles.canChangeTag}>
+                        <Text style={styles.canChangeTagText}>바꿀 수 있음</Text>
+                      </View>
+                    )}
+                    {worry.canChange === false && (
+                      <View style={styles.cannotChangeTag}>
+                        <Text style={styles.cannotChangeTagText}>바꿀 수 없음</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
                 {worry.photoUri && (
@@ -159,6 +183,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     flexShrink: 0,
     overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bubble: {
     flex: 1,
@@ -256,6 +282,7 @@ const styles = StyleSheet.create({
   },
   tagRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   topicTag: {
@@ -277,6 +304,26 @@ const styles = StyleSheet.create({
   emotionTagText: {
     fontSize: 12,
     color: Colors.emotionTagText,
+  },
+  canChangeTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: Colors.canChange,
+    borderRadius: 8,
+  },
+  canChangeTagText: {
+    fontSize: 12,
+    color: Colors.canChangeText,
+  },
+  cannotChangeTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: Colors.cannotChange,
+    borderRadius: 8,
+  },
+  cannotChangeTagText: {
+    fontSize: 12,
+    color: '#92400e',
   },
   fab: {
     position: 'absolute',

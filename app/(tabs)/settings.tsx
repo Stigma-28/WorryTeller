@@ -253,11 +253,13 @@ export default function Settings() {
             <Text style={styles.modalTitle}>계정 관리</Text>
 
             <View style={styles.accountCard}>
-              <Image
-                source={require('@/assets/images/생각중.png')}
-                style={styles.accountAvatar}
-                resizeMode="contain"
-              />
+              <View style={styles.accountAvatar}>
+                <Image
+                  source={require('@/assets/images/생각중.png')}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="contain"
+                />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.accountName}>사용자</Text>
                 <Text style={styles.accountEmail}>user@email.com</Text>
@@ -632,6 +634,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     flexShrink: 0,
     overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   accountName: {
     fontSize: 15,

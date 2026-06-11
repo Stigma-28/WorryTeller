@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, Pressable, Modal, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -25,6 +25,19 @@ export default function QuickLog() {
   const [text, setText] = useState('');
   const [topic, setTopic] = useState('진로·취업');
   const [emotion, setEmotion] = useState('불안');
+
+  // 선택된 태그가 삭제되면 첫 번째 활성 태그로 교정
+  useEffect(() => {
+    if (activeTopics.length > 0 && !activeTopics.includes(topic)) {
+      setTopic(activeTopics[0]);
+    }
+  }, [removedTopics, customTopics]);
+
+  useEffect(() => {
+    if (activeEmotions.length > 0 && !activeEmotions.includes(emotion)) {
+      setEmotion(activeEmotions[0]);
+    }
+  }, [removedEmotions, customEmotions]);
   const [memo, setMemo] = useState('');
   const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
@@ -89,18 +102,34 @@ export default function QuickLog() {
 
     if (editingFor) {
       if (editingFor.type === 'topic') {
+        if (trimmed !== editingFor.tag && activeTopics.includes(trimmed)) {
+          Alert.alert('중복된 태그', `'${trimmed}' 주제는 이미 있어요.`);
+          return;
+        }
         editTopicTag(editingFor.tag, trimmed);
         if (topic === editingFor.tag) setTopic(trimmed);
       } else {
+        if (trimmed !== editingFor.tag && activeEmotions.includes(trimmed)) {
+          Alert.alert('중복된 태그', `'${trimmed}' 감정은 이미 있어요.`);
+          return;
+        }
         editEmotionTag(editingFor.tag, trimmed);
         if (emotion === editingFor.tag) setEmotion(trimmed);
       }
       setEditingFor(null);
     } else if (addingFor) {
       if (addingFor === 'topic') {
+        if (activeTopics.includes(trimmed)) {
+          Alert.alert('중복된 태그', `'${trimmed}' 주제는 이미 있어요.`);
+          return;
+        }
         addCustomTopic(trimmed);
         setTopic(trimmed);
       } else {
+        if (activeEmotions.includes(trimmed)) {
+          Alert.alert('중복된 태그', `'${trimmed}' 감정은 이미 있어요.`);
+          return;
+        }
         addCustomEmotion(trimmed);
         setEmotion(trimmed);
       }
@@ -127,11 +156,13 @@ export default function QuickLog() {
 
       <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.charRow}>
-          <Image
-            source={require('@/assets/images/생각중.png')}
-            style={styles.charCircle}
-            resizeMode="contain"
-          />
+          <View style={styles.charCircle}>
+            <Image
+              source={require('@/assets/images/생각중.png')}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="contain"
+            />
+          </View>
           <View style={styles.bubble}>
             <Text style={styles.bubbleText}>무슨 생각하고 있어요?</Text>
           </View>
@@ -338,6 +369,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     flexShrink: 0,
     overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bubble: {
     flex: 1,

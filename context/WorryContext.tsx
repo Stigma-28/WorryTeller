@@ -35,6 +35,7 @@ interface WorryContextType {
   removeEmotionTag: (tag: string) => void;
   editTopicTag: (oldTag: string, newTag: string) => void;
   editEmotionTag: (oldTag: string, newTag: string) => void;
+  loaded: boolean;
 }
 
 const WorryContext = createContext<WorryContextType | undefined>(undefined);
@@ -254,46 +255,49 @@ export function WorryProvider({ children }: { children: ReactNode }) {
     if (!loaded || Platform.OS === 'web') return;
 
     const syncNotifications = async () => {
-      if (notificationsEnabled) {
-        const { status: existingStatus, canAskAgain } = await Notifications.getPermissionsAsync();
-        let finalStatus = existingStatus;
+      try {
+        if (notificationsEnabled) {
+          const { status: existingStatus, canAskAgain } = await Notifications.getPermissionsAsync();
+          let finalStatus = existingStatus;
 
-        if (existingStatus !== 'granted') {
-          if (canAskAgain) {
-            const { status } = await Notifications.requestPermissionsAsync();
-            finalStatus = status;
-          } else {
-            // 영구 거부 — 시스템 설정으로 안내
+          if (existingStatus !== 'granted') {
+            if (canAskAgain) {
+              const { status } = await Notifications.requestPermissionsAsync();
+              finalStatus = status;
+            } else {
+              setNotificationsEnabled(false);
+              Alert.alert(
+                '알림 권한이 필요해요',
+                '설정 앱 > Worry Teller > 알림에서 직접 허용해주세요.',
+                [{ text: '확인' }]
+              );
+              return;
+            }
+          }
+
+          if (finalStatus !== 'granted') {
             setNotificationsEnabled(false);
-            Alert.alert(
-              '알림 권한이 필요해요',
-              '설정 앱 > Worry Teller > 알림에서 직접 허용해주세요.',
-              [{ text: '확인' }]
-            );
             return;
           }
-        }
 
-        if (finalStatus !== 'granted') {
-          setNotificationsEnabled(false);
-          return;
+          const [h, m] = notificationTime.split(':').map(Number);
+          await Notifications.cancelAllScheduledNotificationsAsync();
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: 'Worry Teller ✦',
+              body: '오늘 하루 어땠나요? 걱정을 기록해봐요',
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DAILY,
+              hour: h,
+              minute: m,
+            },
+          });
+        } else {
+          await Notifications.cancelAllScheduledNotificationsAsync();
         }
-
-        const [h, m] = notificationTime.split(':').map(Number);
-        await Notifications.cancelAllScheduledNotificationsAsync();
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'Worry Teller ✦',
-            body: '오늘 하루 어땠나요? 걱정을 기록해봐요',
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DAILY,
-            hour: h,
-            minute: m,
-          },
-        });
-      } else {
-        await Notifications.cancelAllScheduledNotificationsAsync();
+      } catch {
+        // 알림 스케줄링 실패 시 조용히 무시 (웹/시뮬레이터 등)
       }
     };
 
@@ -369,6 +373,7 @@ export function WorryProvider({ children }: { children: ReactNode }) {
       notificationTime, setNotificationTime,
       customTopics, customEmotions, addCustomTopic, addCustomEmotion,
       removedTopics, removedEmotions, removeTopicTag, removeEmotionTag, editTopicTag, editEmotionTag,
+      loaded,
     }}>
       {children}
     </WorryContext.Provider>

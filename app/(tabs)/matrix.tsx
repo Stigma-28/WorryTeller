@@ -152,7 +152,7 @@ export default function Matrix() {
               <Text style={styles.canChangeTitle}>바꿀 수 있음</Text>
               {canChangeWorries.length > 0 && (
                 <Text style={styles.resolvedCounter}>
-                  ({resolvedIds.size}/{canChangeWorries.length} 해결)
+                  ({canChangeWorries.filter(w => resolvedIds.has(w.id)).length}/{canChangeWorries.length} 해결)
                 </Text>
               )}
             </View>
@@ -226,14 +226,16 @@ export default function Matrix() {
             {todos.length === 0 ? (
               <Text style={styles.emptyChipText}>할 일을 추가해보세요</Text>
             ) : (
-              <DraggableFlatList
-                data={todos}
-                keyExtractor={item => item.id}
-                onDragEnd={({ data }) => setTodos(data)}
-                renderItem={renderTodoItem}
-                scrollEnabled={false}
-                containerStyle={styles.todoList}
-              />
+              <View>
+                <DraggableFlatList
+                  data={todos}
+                  keyExtractor={item => item.id}
+                  onDragEnd={({ data }) => setTodos(data)}
+                  renderItem={renderTodoItem}
+                  scrollEnabled={false}
+                  activationDistance={5}
+                />
+              </View>
             )}
           </View>
         </View>
@@ -447,9 +449,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  todoList: {
-    gap: 0,
   },
   todoRow: {
     flexDirection: 'row',

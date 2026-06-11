@@ -9,16 +9,16 @@ import { useWorries } from '@/context/WorryContext';
 export default function ControlBranch() {
   const router = useRouter();
   const { worryId } = useLocalSearchParams<{ worryId: string }>();
-  const { getWorry, updateWorry } = useWorries();
+  const { getWorry, updateWorry, loaded } = useWorries();
 
   const insets = useSafeAreaInsets();
   const worry = worryId ? getWorry(worryId) : undefined;
 
   useEffect(() => {
-    if (!worry) router.replace('/home');
-  }, [worry]);
+    if (loaded && !worry) router.replace('/home');
+  }, [worry, loaded]);
 
-  if (!worry) return null;
+  if (!loaded || !worry) return null;
 
   const handleChoice = (canChange: boolean) => {
     updateWorry(worry.id, { canChange });
@@ -28,7 +28,7 @@ export default function ControlBranch() {
   return (
     <View style={styles.container}>
       <View style={[styles.topBar, { paddingTop: 16 + insets.top }]}>
-        <TouchableOpacity onPress={() => router.push('/home')}>
+        <TouchableOpacity onPress={() => router.replace('/home')}>
           <Ionicons name="arrow-back" size={24} color={Colors.textSecondary} />
         </TouchableOpacity>
         <Text style={styles.topBarText}>방금 저장됨</Text>

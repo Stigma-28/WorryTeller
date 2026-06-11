@@ -15,12 +15,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/colors';
 import { useWorries } from '@/context/WorryContext';
+import { generateWorryInsight } from '@/utils/insights';
 
 function formatDate(date: Date) {
   const now = new Date();
   const diff = now.getTime() - date.getTime();
-  const weeks = Math.floor(diff / (1000 * 60 * 60 * 24 * 7));
-  if (weeks === 0) return '오늘';
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  if (days === 0) return '오늘';
+  if (days === 1) return '어제';
+  if (days < 7) return `${days}일 전`;
+  const weeks = Math.floor(days / 7);
   if (weeks === 1) return '1주 전';
   return `${weeks}주 전`;
 }
@@ -28,9 +32,10 @@ function formatDate(date: Date) {
 export default function WorryDetail() {
   const router = useRouter();
   const { worryId } = useLocalSearchParams<{ worryId: string }>();
-  const { getWorry, updateWorry, deleteWorry, worries } = useWorries();
+  const { getWorry, updateWorry, deleteWorry, worries, loaded } = useWorries();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
+  const deletingRef = useRef(false);
 
   const insets = useSafeAreaInsets();
   const worry = worryId ? getWorry(worryId) : undefined;
@@ -38,9 +43,10 @@ export default function WorryDetail() {
   const memoTextRef = useRef(memoText);
   memoTextRef.current = memoText;
 
+  // 데이터 로드 완료 후 걱정이 없으면 홈으로 (삭제로 인한 이탈은 제외)
   useEffect(() => {
-    if (!worry) router.replace('/home');
-  }, [worry]);
+    if (loaded && !worry && !deletingRef.current) router.replace('/home');
+  }, [worry, loaded]);
 
   // 뒤로가기 등 unmount 시 저장
   useEffect(() => {
@@ -50,13 +56,14 @@ export default function WorryDetail() {
     };
   }, []);
 
-  if (!worry) return null;
+  if (!loaded || !worry) return null;
 
-  const handleReclassify = (canChange: boolean) => {
-    updateWorry(worry.id, { canChange });
+  const handleReclassify = (value: boolean) => {
+    updateWorry(worry.id, { canChange: worry.canChange === value ? undefined : value });
   };
 
   const handleDelete = () => {
+    deletingRef.current = true;
     deleteWorry(worry.id);
     router.replace('/home');
   };
@@ -179,7 +186,7 @@ export default function WorryDetail() {
             <Text style={styles.insightTitle}>AI 인사이트</Text>
           </View>
           <Text style={styles.insightText}>
-            이 걱정은 지난달에 3번 나타났어요. {worry.topic}·{worry.emotion} 패턴이 반복되고 있어요.
+            {generateWorryInsight(worry, worries)}
           </Text>
         </View>
 
