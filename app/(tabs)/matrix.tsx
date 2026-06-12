@@ -93,7 +93,14 @@ export default function Matrix() {
       {
         text: '걱정 삭제',
         style: 'destructive',
-        onPress: () => deleteWorry(worryId),
+        onPress: () => {
+          setResolvedIds(prev => {
+            const next = new Set(prev);
+            next.delete(worryId);
+            return next;
+          });
+          deleteWorry(worryId);
+        },
       },
       { text: '취소', style: 'cancel' },
     ]);

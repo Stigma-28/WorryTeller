@@ -179,11 +179,11 @@ export default function WorryDetail() {
           </View>
         </View>
 
-        {/* AI 인사이트 */}
+        {/* 걱정 분석 */}
         <View style={styles.insightCard}>
           <View style={styles.insightRow}>
             <Ionicons name="sparkles" size={18} color="#ffffff" />
-            <Text style={styles.insightTitle}>AI 인사이트</Text>
+            <Text style={styles.insightTitle}>걱정 분석</Text>
           </View>
           <Text style={styles.insightText}>
             {generateWorryInsight(worry, worries)}

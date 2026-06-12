@@ -94,11 +94,11 @@ export default function Dashboard() {
             </View>
           </View>
 
-          {/* AI 인사이트 카드 */}
+          {/* 걱정 분석 카드 */}
           <View style={styles.insightCard}>
             <View style={styles.insightTitleRow}>
               <Ionicons name="sparkles" size={18} color="#ffffff" />
-              <Text style={styles.insightTitle}>AI 인사이트</Text>
+              <Text style={styles.insightTitle}>걱정 분석</Text>
               <Text style={styles.insightPeriodBadge}>
                 {period === 'month' ? '이번 달' : '오늘'}
               </Text>
