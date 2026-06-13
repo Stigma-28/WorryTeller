@@ -1,14 +1,16 @@
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, Pressable, Modal, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, Pressable, Modal, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
+import { extractKeywords } from '@/utils/extractKeywords';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/colors';
+import { PRESET_TOPICS, PRESET_EMOTIONS } from '@/constants/tags';
 import { useWorries } from '@/context/WorryContext';
 
-const TOPICS = ['진로·취업', '공부', '관계', '건강', '돈'];
-const EMOTIONS = ['불안', '우울', '짜증', '두려움', '부끄러움', '실망', '무기력', '스트레스'];
+const TOPICS = PRESET_TOPICS;
+const EMOTIONS = PRESET_EMOTIONS;
 
 export default function QuickLog() {
   const router = useRouter();
@@ -38,6 +40,8 @@ export default function QuickLog() {
       setEmotion(activeEmotions[0]);
     }
   }, [removedEmotions, customEmotions]);
+  const [aiKeywords, setAiKeywords] = useState<string[] | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const [memo, setMemo] = useState('');
   const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
@@ -138,10 +142,30 @@ export default function QuickLog() {
     setNewTagText('');
   };
 
+  useEffect(() => {
+    setAiKeywords(null);
+  }, [text]);
+
+  const handleAiExtract = async () => {
+    setAiLoading(true);
+    const result = await extractKeywords(text);
+    setAiLoading(false);
+    if (!result) return;
+    setAiKeywords(result.keywords);
+    if (activeTopics.includes(result.category)) {
+      setTopic(result.category);
+    }
+  };
+
   const handleSave = () => {
     if (!text.trim()) return;
-    const worryId = addWorry({ text, topic, emotion, memo: memo || undefined, photoUri });
-    router.push(`/control/${worryId}`);
+    const worryId = addWorry({
+      text, topic, emotion,
+      memo: memo || undefined,
+      photoUri,
+      keywords: aiKeywords ?? undefined,
+    });
+    router.replace(`/control/${worryId}`);
   };
 
   return (
@@ -176,6 +200,42 @@ export default function QuickLog() {
           multiline
           style={styles.mainInput}
         />
+
+        {/* AI 분석 버튼 */}
+        <TouchableOpacity
+          style={[styles.aiBtn, (!text.trim() || aiLoading) && styles.aiBtnDisabled]}
+          onPress={handleAiExtract}
+          disabled={!text.trim() || aiLoading}
+        >
+          {aiLoading ? (
+            <>
+              <ActivityIndicator size="small" color="#ffffff" />
+              <Text style={styles.aiBtnText}>AI가 분석 중...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="sparkles" size={16} color="#ffffff" />
+              <Text style={styles.aiBtnText}>AI 분석</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        {/* AI 추출 키워드 */}
+        {aiKeywords && aiKeywords.length > 0 && (
+          <View style={styles.aiKeywordSection}>
+            <View style={styles.aiKeywordLabelRow}>
+              <Ionicons name="sparkles" size={13} color={Colors.primary} />
+              <Text style={styles.aiKeywordLabel}>AI 추출 키워드</Text>
+            </View>
+            <View style={styles.aiKeywordRow}>
+              {aiKeywords.map(kw => (
+                <View key={kw} style={styles.aiKeywordChip}>
+                  <Text style={styles.aiKeywordChipText}>{kw}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         <Text style={styles.fieldLabel}>주제</Text>
         <View style={styles.chipRow}>
@@ -587,6 +647,54 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  aiBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    paddingVertical: 12,
+    borderRadius: 9999,
+  },
+  aiBtnDisabled: {
+    backgroundColor: '#d1d5db',
+  },
+  aiBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  aiKeywordSection: {
+    gap: 8,
+  },
+  aiKeywordLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  aiKeywordLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.primary,
+  },
+  aiKeywordRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  aiKeywordChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: Colors.primaryMuted,
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  aiKeywordChipText: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '500',
   },
   saveButton: {
     backgroundColor: Colors.primary,

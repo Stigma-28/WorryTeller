@@ -22,7 +22,7 @@ export default function ControlBranch() {
 
   const handleChoice = (canChange: boolean) => {
     updateWorry(worry.id, { canChange });
-    router.push('/matrix');
+    router.replace('/matrix');
   };
 
   return (

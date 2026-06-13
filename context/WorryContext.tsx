@@ -13,6 +13,7 @@ export interface Worry {
   canChange?: boolean;
   createdAt: Date;
   recurring?: boolean;
+  keywords?: string[];
 }
 
 interface WorryContextType {
