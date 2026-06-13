@@ -148,12 +148,15 @@ export default function QuickLog() {
 
   const handleAiExtract = async () => {
     setAiLoading(true);
-    const result = await extractKeywords(text);
+    const result = await extractKeywords(text, activeTopics, activeEmotions);
     setAiLoading(false);
     if (!result) return;
     setAiKeywords(result.keywords);
     if (activeTopics.includes(result.category)) {
       setTopic(result.category);
+    }
+    if (activeEmotions.includes(result.emotion)) {
+      setEmotion(result.emotion);
     }
   };
 

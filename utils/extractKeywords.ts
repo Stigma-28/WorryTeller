@@ -1,5 +1,3 @@
-import { PRESET_TOPICS } from '@/constants/tags';
-
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -7,13 +5,19 @@ const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models
 export interface KeywordResult {
   keywords: string[];
   category: string;
+  emotion: string;
 }
 
-export async function extractKeywords(text: string): Promise<KeywordResult | null> {
+export async function extractKeywords(
+  text: string,
+  activeTopics: string[],
+  activeEmotions: string[],
+): Promise<KeywordResult | null> {
   if (!text.trim()) return null;
   if (!GEMINI_API_KEY) return null;
+  if (activeTopics.length === 0 || activeEmotions.length === 0) return null;
 
-  const prompt = `아래 걱정 텍스트를 분석해서 핵심 키워드 2~3개와 카테고리를 추출해줘.
+  const prompt = `아래 걱정 텍스트를 분석해서 핵심 키워드 2~3개, 카테고리, 감정을 추출해줘.
 
 걱정 텍스트: "${text.trim()}"
 
@@ -26,10 +30,14 @@ export async function extractKeywords(text: string): Promise<KeywordResult | nul
 
 [카테고리 규칙]
 반드시 아래 중 가장 적합한 것 하나만 선택:
-${PRESET_TOPICS.join(', ')}
+${activeTopics.join(', ')}
+
+[감정 규칙]
+반드시 아래 중 가장 적합한 것 하나만 선택:
+${activeEmotions.join(', ')}
 
 [출력] 아래 JSON 형식으로만 응답, 다른 텍스트 없이:
-{"keywords": ["키워드1", "키워드2"], "category": "카테고리명"}`;
+{"keywords": ["키워드1", "키워드2"], "category": "카테고리명", "emotion": "감정명"}`;
 
   try {
     const response = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
@@ -54,12 +62,13 @@ ${PRESET_TOPICS.join(', ')}
       : [];
 
     const category = typeof parsed.category === 'string' ? parsed.category.trim() : null;
+    const emotion = typeof parsed.emotion === 'string' ? parsed.emotion.trim() : null;
 
     if (keywords.length === 0) return null;
-    if (!category) return null;
-    if (!(PRESET_TOPICS as readonly string[]).includes(category)) return null;
+    if (!category || !activeTopics.includes(category)) return null;
+    if (!emotion || !activeEmotions.includes(emotion)) return null;
 
-    return { keywords, category };
+    return { keywords, category, emotion };
   } catch {
     return null;
   }
