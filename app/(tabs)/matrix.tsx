@@ -41,6 +41,12 @@ export default function Matrix() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [newTodoText, setNewTodoText] = useState('');
+  const [showAllCan, setShowAllCan] = useState(false);
+  const [showAllCannot, setShowAllCannot] = useState(false);
+
+  const INITIAL_SHOW = 5;
+  const visibleCanChange = showAllCan ? canChangeWorries : canChangeWorries.slice(0, INITIAL_SHOW);
+  const visibleCannotChange = showAllCannot ? cannotChangeWorries : cannotChangeWorries.slice(0, INITIAL_SHOW);
 
   useEffect(() => {
     const load = async () => {
@@ -165,7 +171,7 @@ export default function Matrix() {
             </View>
             {canChangeWorries.length > 0 ? (
               <View style={styles.chipWrap}>
-                {canChangeWorries.map(worry => {
+                {visibleCanChange.map(worry => {
                   const resolved = resolvedIds.has(worry.id);
                   return (
                     <TouchableOpacity
@@ -175,17 +181,25 @@ export default function Matrix() {
                       onLongPress={() => handleWorryLongPress(worry.id, worry.text)}
                       delayLongPress={500}
                     >
-                      <Text style={[styles.chipText, resolved && styles.chipTextResolved]}>
+                      <Text style={[styles.chipText, resolved && styles.chipTextResolved]} numberOfLines={1}>
                         {worry.text}
                       </Text>
                       <View style={[styles.chipDot, resolved && styles.chipDotResolved]}>
-                        {resolved && (
-                          <Ionicons name="checkmark" size={9} color="#ffffff" />
-                        )}
+                        {resolved && <Ionicons name="checkmark" size={9} color="#ffffff" />}
                       </View>
                     </TouchableOpacity>
                   );
                 })}
+                {canChangeWorries.length > INITIAL_SHOW && (
+                  <TouchableOpacity
+                    style={styles.showMoreBtn}
+                    onPress={() => setShowAllCan(prev => !prev)}
+                  >
+                    <Text style={styles.showMoreText}>
+                      {showAllCan ? '접기' : `나머지 ${canChangeWorries.length - INITIAL_SHOW}개 더 보기`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               <Text style={styles.emptyChipText}>
@@ -199,7 +213,7 @@ export default function Matrix() {
             <Text style={styles.cannotChangeTitle}>바꿀 수 없음</Text>
             {cannotChangeWorries.length > 0 ? (
               <View style={styles.chipWrap}>
-                {cannotChangeWorries.map(worry => (
+                {visibleCannotChange.map(worry => (
                   <TouchableOpacity
                     key={worry.id}
                     style={styles.chipStatic}
@@ -207,9 +221,19 @@ export default function Matrix() {
                     delayLongPress={500}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.chipStaticText}>{worry.text}</Text>
+                    <Text style={styles.chipStaticText} numberOfLines={1}>{worry.text}</Text>
                   </TouchableOpacity>
                 ))}
+                {cannotChangeWorries.length > INITIAL_SHOW && (
+                  <TouchableOpacity
+                    style={styles.showMoreBtn}
+                    onPress={() => setShowAllCannot(prev => !prev)}
+                  >
+                    <Text style={styles.showMoreText}>
+                      {showAllCannot ? '접기' : `나머지 ${cannotChangeWorries.length - INITIAL_SHOW}개 더 보기`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               <Text style={styles.emptyChipText}>
@@ -374,6 +398,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 2,
     elevation: 1,
+    maxWidth: '100%',
   },
   chipResolved: {
     backgroundColor: '#f0f0f0',
@@ -421,11 +446,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 2,
     elevation: 1,
+    maxWidth: '100%',
   },
   chipStaticText: {
     fontSize: 12,
     color: '#374151',
     flexShrink: 1,
+  },
+  showMoreBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderStyle: 'dashed',
+    alignSelf: 'flex-start',
+  },
+  showMoreText: {
+    fontSize: 12,
+    color: Colors.textMuted,
   },
   emptyChipText: {
     fontSize: 12,

@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/colors';
@@ -42,6 +42,22 @@ export default function Dashboard() {
   }, {} as Record<string, number>);
   const keywords = Object.entries(emotionCounts).sort(([, a], [, b]) => b - a).slice(0, 8);
   const maxKeywordCount = Math.max(...keywords.map(([, c]) => c), 1);
+
+  // 반복되는 걱정 — 전체 걱정 중 주제별 빈도 상위 3개, 각 주제당 랜덤 1개
+  const recurringSpotlight = useMemo(() => {
+    if (worries.length === 0) return [];
+    const counts = worries.reduce((acc, w) => {
+      acc[w.topic] = (acc[w.topic] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    const top3 = Object.entries(counts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3);
+    return top3.map(([topic, count]) => {
+      const pool = worries.filter(w => w.topic === topic);
+      return { worry: pool[Math.floor(Math.random() * pool.length)], topic, count };
+    });
+  }, [worries]);
 
   const now = new Date();
   const monthLabel = now.toLocaleDateString('ko-KR', { month: 'long' });
@@ -176,24 +192,28 @@ export default function Dashboard() {
 
           {/* 반복되는 걱정 */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>반복되는 걱정</Text>
-            {worries.filter(w => w.recurring).length > 0 ? (
+            <Text style={styles.cardTitle}>자주 하는 걱정</Text>
+            {recurringSpotlight.length > 0 ? (
               <View style={styles.recurringList}>
-                {worries.filter(w => w.recurring).slice(0, 3).map(worry => (
+                {recurringSpotlight.map(({ worry, topic, count }, index) => (
                   <TouchableOpacity
                     key={worry.id}
                     style={styles.recurringItem}
                     onPress={() => router.push(`/worry/${worry.id}`)}
                   >
-                    <Text style={styles.recurringText}>{worry.text}</Text>
-                    <View style={styles.topicTag}>
-                      <Text style={styles.topicTagText}>{worry.topic}</Text>
+                    <View style={styles.recurringHeader}>
+                      <Text style={styles.recurringRank}>{index + 1}위</Text>
+                      <View style={styles.topicTag}>
+                        <Text style={styles.topicTagText}>{topic}</Text>
+                      </View>
+                      <Text style={styles.recurringCount}>{count}건</Text>
                     </View>
+                    <Text style={styles.recurringText}>{worry.text}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             ) : (
-              <Text style={styles.emptyText}>반복되는 걱정이 없어요</Text>
+              <Text style={styles.emptyText}>기록된 걱정이 없어요</Text>
             )}
           </View>
         </View>
@@ -386,6 +406,22 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     gap: 8,
+  },
+  recurringHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  recurringRank: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: Colors.primary,
+    minWidth: 24,
+  },
+  recurringCount: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginLeft: 'auto',
   },
   recurringText: {
     fontSize: 14,

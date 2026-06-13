@@ -218,7 +218,7 @@ export default function QuickLog() {
           ) : (
             <>
               <Ionicons name="sparkles" size={16} color="#ffffff" />
-              <Text style={styles.aiBtnText}>AI 분석</Text>
+              <Text style={styles.aiBtnText}>걱정 들여다보기</Text>
             </>
           )}
         </TouchableOpacity>
@@ -475,6 +475,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 9999,
     backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chipActive: {
     backgroundColor: Colors.primary,
@@ -482,6 +484,7 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 13,
     color: Colors.textSecondary,
+    textAlign: 'center',
   },
   chipTextActive: {
     color: '#ffffff',
@@ -496,6 +499,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   memoLabelRow: {
     flexDirection: 'row',

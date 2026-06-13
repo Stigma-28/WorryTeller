@@ -39,6 +39,9 @@ ${activeEmotions.join(', ')}
 [출력] 아래 JSON 형식으로만 응답, 다른 텍스트 없이:
 {"keywords": ["키워드1", "키워드2"], "category": "카테고리명", "emotion": "감정명"}`;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
   try {
     const response = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
@@ -47,7 +50,9 @@ ${activeEmotions.join(', ')}
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { responseMimeType: 'application/json' },
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) return null;
 
@@ -70,6 +75,7 @@ ${activeEmotions.join(', ')}
 
     return { keywords, category, emotion };
   } catch {
+    clearTimeout(timeoutId);
     return null;
   }
 }
