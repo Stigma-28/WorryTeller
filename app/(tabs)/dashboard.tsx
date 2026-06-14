@@ -27,26 +27,26 @@ export default function Dashboard() {
   // 인사이트 문장들
   const insights = generateInsights(periodWorries, period);
 
-  // 카테고리 차트 — 항상 이번 달 기준
-  const topicCounts = monthWorries.reduce((acc, w) => {
+  // 카테고리 차트 — 선택된 기간 기준
+  const topicCounts = periodWorries.reduce((acc, w) => {
     acc[w.topic] = (acc[w.topic] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
   const topicData = Object.entries(topicCounts).sort(([, a], [, b]) => b - a).slice(0, 5);
   const maxTopicCount = Math.max(...topicData.map(([, c]) => c), 1);
 
-  // 키워드 클라우드 — 항상 이번 달 기준
-  const emotionCounts = monthWorries.reduce((acc, w) => {
+  // 키워드 클라우드 — 선택된 기간 기준
+  const emotionCounts = periodWorries.reduce((acc, w) => {
     acc[w.emotion] = (acc[w.emotion] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
   const keywords = Object.entries(emotionCounts).sort(([, a], [, b]) => b - a).slice(0, 8);
   const maxKeywordCount = Math.max(...keywords.map(([, c]) => c), 1);
 
-  // 반복되는 걱정 — 전체 걱정 중 주제별 빈도 상위 3개, 각 주제당 랜덤 1개
+  // 자주 하는 걱정 — 선택된 기간 내 주제별 빈도 상위 3개, 각 주제당 랜덤 1개
   const recurringSpotlight = useMemo(() => {
-    if (worries.length === 0) return [];
-    const counts = worries.reduce((acc, w) => {
+    if (periodWorries.length === 0) return [];
+    const counts = periodWorries.reduce((acc, w) => {
       acc[w.topic] = (acc[w.topic] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -54,10 +54,10 @@ export default function Dashboard() {
       .sort(([, a], [, b]) => b - a)
       .slice(0, 3);
     return top3.map(([topic, count]) => {
-      const pool = worries.filter(w => w.topic === topic);
+      const pool = periodWorries.filter(w => w.topic === topic);
       return { worry: pool[Math.floor(Math.random() * pool.length)], topic, count };
     });
-  }, [worries]);
+  }, [periodWorries]);
 
   const now = new Date();
   const monthLabel = now.toLocaleDateString('ko-KR', { month: 'long' });
@@ -136,7 +136,7 @@ export default function Dashboard() {
             <View style={styles.cardHeader}>
               <View>
                 <Text style={styles.cardTitle}>카테고리별 빈도</Text>
-                <Text style={styles.cardSub}>이번 달 기준</Text>
+                <Text style={styles.cardSub}>{period === 'month' ? '이번 달 기준' : '오늘 기준'}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
             </View>
@@ -170,7 +170,7 @@ export default function Dashboard() {
             <View style={styles.cardHeader}>
               <View>
                 <Text style={styles.cardTitle}>감정 키워드</Text>
-                <Text style={styles.cardSub}>이번 달 기준</Text>
+                <Text style={styles.cardSub}>{period === 'month' ? '이번 달 기준' : '오늘 기준'}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
             </View>
