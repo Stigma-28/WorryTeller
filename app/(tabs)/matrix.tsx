@@ -9,7 +9,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,6 +33,11 @@ export default function Matrix() {
   const canChangeWorries = worries.filter(w => w.canChange === true);
   const cannotChangeWorries = worries.filter(w => w.canChange === false);
 
+  const getChipLabel = (worry: { keywords?: string[]; text: string }) =>
+    worry.keywords && worry.keywords.length > 0
+      ? worry.keywords.slice(0, 2).join(' · ')
+      : worry.text;
+
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -43,6 +47,7 @@ export default function Matrix() {
   const [newTodoText, setNewTodoText] = useState('');
   const [showAllCan, setShowAllCan] = useState(false);
   const [showAllCannot, setShowAllCannot] = useState(false);
+  const [managingWorry, setManagingWorry] = useState<{ id: string; text: string } | null>(null);
 
   const INITIAL_SHOW = 5;
   const visibleCanChange = showAllCan ? canChangeWorries : canChangeWorries.slice(0, INITIAL_SHOW);
@@ -90,26 +95,25 @@ export default function Matrix() {
     setResolvedIds(next);
   };
 
-  const handleWorryLongPress = (worryId: string, worryText: string) => {
-    Alert.alert('걱정 관리', worryText, [
-      {
-        text: '분류 해제',
-        onPress: () => updateWorry(worryId, { canChange: undefined }),
-      },
-      {
-        text: '걱정 삭제',
-        style: 'destructive',
-        onPress: () => {
-          setResolvedIds(prev => {
-            const next = new Set(prev);
-            next.delete(worryId);
-            return next;
-          });
-          deleteWorry(worryId);
-        },
-      },
-      { text: '취소', style: 'cancel' },
-    ]);
+  const handleWorryManage = (worryId: string, worryText: string) => {
+    setManagingWorry({ id: worryId, text: worryText });
+  };
+
+  const handleReclassifyManage = () => {
+    if (!managingWorry) return;
+    updateWorry(managingWorry.id, { canChange: undefined });
+    setManagingWorry(null);
+  };
+
+  const handleDeleteManage = () => {
+    if (!managingWorry) return;
+    setResolvedIds(prev => {
+      const next = new Set(prev);
+      next.delete(managingWorry.id);
+      return next;
+    });
+    deleteWorry(managingWorry.id);
+    setManagingWorry(null);
   };
 
   const handleAddTodo = () => {
@@ -174,20 +178,28 @@ export default function Matrix() {
                 {visibleCanChange.map(worry => {
                   const resolved = resolvedIds.has(worry.id);
                   return (
-                    <TouchableOpacity
-                      key={worry.id}
-                      style={[styles.chip, resolved && styles.chipResolved]}
-                      onPress={() => toggleResolved(worry.id)}
-                      onLongPress={() => handleWorryLongPress(worry.id, worry.text)}
-                      delayLongPress={500}
-                    >
-                      <Text style={[styles.chipText, resolved && styles.chipTextResolved]} numberOfLines={1}>
-                        {worry.text}
-                      </Text>
-                      <View style={[styles.chipDot, resolved && styles.chipDotResolved]}>
-                        {resolved && <Ionicons name="checkmark" size={9} color="#ffffff" />}
-                      </View>
-                    </TouchableOpacity>
+                    <View key={worry.id} style={styles.chipRow}>
+                      <TouchableOpacity
+                        style={[styles.chip, resolved && styles.chipResolved]}
+                        onPress={() => toggleResolved(worry.id)}
+                        onLongPress={() => handleWorryManage(worry.id, worry.text)}
+                        delayLongPress={500}
+                      >
+                        <Text style={[styles.chipText, resolved && styles.chipTextResolved]} numberOfLines={1}>
+                          {getChipLabel(worry)}
+                        </Text>
+                        <View style={[styles.chipDot, resolved && styles.chipDotResolved]}>
+                          {resolved && <Ionicons name="checkmark" size={9} color="#ffffff" />}
+                        </View>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.chipMenuBtn}
+                        onPress={() => handleWorryManage(worry.id, worry.text)}
+                        hitSlop={8}
+                      >
+                        <Ionicons name="ellipsis-horizontal" size={14} color="#6b7280" />
+                      </TouchableOpacity>
+                    </View>
                   );
                 })}
                 {canChangeWorries.length > INITIAL_SHOW && (
@@ -214,15 +226,23 @@ export default function Matrix() {
             {cannotChangeWorries.length > 0 ? (
               <View style={styles.chipWrap}>
                 {visibleCannotChange.map(worry => (
-                  <TouchableOpacity
-                    key={worry.id}
-                    style={styles.chipStatic}
-                    onLongPress={() => handleWorryLongPress(worry.id, worry.text)}
-                    delayLongPress={500}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.chipStaticText} numberOfLines={1}>{worry.text}</Text>
-                  </TouchableOpacity>
+                  <View key={worry.id} style={styles.chipRow}>
+                    <TouchableOpacity
+                      style={styles.chipStatic}
+                      onLongPress={() => handleWorryManage(worry.id, worry.text)}
+                      delayLongPress={500}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.chipStaticText} numberOfLines={1}>{getChipLabel(worry)}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.chipMenuBtn}
+                      onPress={() => handleWorryManage(worry.id, worry.text)}
+                      hitSlop={8}
+                    >
+                      <Ionicons name="ellipsis-horizontal" size={14} color="#6b7280" />
+                    </TouchableOpacity>
+                  </View>
                 ))}
                 {cannotChangeWorries.length > INITIAL_SHOW && (
                   <TouchableOpacity
@@ -300,6 +320,27 @@ export default function Matrix() {
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* 걱정 관리 모달 */}
+      <Modal visible={managingWorry !== null} transparent animationType="fade">
+        <Pressable style={styles.overlayCenter} onPress={() => setManagingWorry(null)}>
+          <Pressable style={styles.deleteModal} onPress={() => {}}>
+            <Text style={styles.deleteTitle}>걱정 관리</Text>
+            <Text style={styles.deleteSub} numberOfLines={1}>{managingWorry?.text}</Text>
+            <View style={styles.deleteBtns}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={handleReclassifyManage}>
+                <Text style={styles.cancelBtnText}>분류 해제</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.deleteConfirmBtn} onPress={handleDeleteManage}>
+                <Text style={styles.deleteConfirmBtnText}>삭제</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity onPress={() => setManagingWorry(null)} style={styles.manageCancel}>
+              <Text style={styles.manageCancelText}>취소</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* 할 일 삭제 확인 모달 */}
@@ -386,6 +427,21 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
+  chipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+  },
+  chipMenuBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.07)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -398,7 +454,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 2,
     elevation: 1,
-    maxWidth: '100%',
+    maxWidth: 190,
   },
   chipResolved: {
     backgroundColor: '#f0f0f0',
@@ -446,7 +502,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 2,
     elevation: 1,
-    maxWidth: '100%',
+    maxWidth: 190,
   },
   chipStaticText: {
     fontSize: 12,
@@ -631,5 +687,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: '#ffffff',
+  },
+  manageCancel: {
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  manageCancelText: {
+    fontSize: 14,
+    color: '#9ca3af',
   },
 });

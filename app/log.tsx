@@ -43,7 +43,7 @@ export default function QuickLog() {
   const [aiKeywords, setAiKeywords] = useState<string[] | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [memo, setMemo] = useState('');
-  const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
+  const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
   const [addingFor, setAddingFor] = useState<'topic' | 'emotion' | null>(null);
   const [editingFor, setEditingFor] = useState<{ tag: string; type: 'topic' | 'emotion' } | null>(null);
@@ -51,18 +51,25 @@ export default function QuickLog() {
 
   const launchCamera = async () => {
     setShowPhotoSheet(false);
+    if (Platform.OS === 'web') return;
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') return;
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
-    if (!result.canceled) setPhotoUri(result.assets[0].uri);
+    if (!result.canceled) setPhotoUris(prev => [...prev, result.assets[0].uri]);
   };
 
   const launchGallery = async () => {
     setShowPhotoSheet(false);
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-    if (!result.canceled) setPhotoUri(result.assets[0].uri);
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      allowsMultipleSelection: true,
+    });
+    if (!result.canceled) setPhotoUris(prev => [...prev, ...result.assets.map(a => a.uri)]);
   };
 
   const handleTagLongPress = (tag: string, type: 'topic' | 'emotion') => {
@@ -165,7 +172,7 @@ export default function QuickLog() {
     const worryId = addWorry({
       text, topic, emotion,
       memo: memo || undefined,
-      photoUri,
+      photoUris: photoUris.length > 0 ? photoUris : undefined,
       keywords: aiKeywords ?? undefined,
     });
     router.replace(`/control/${worryId}`);
@@ -298,16 +305,20 @@ export default function QuickLog() {
           style={styles.memoInput}
         />
 
-        {photoUri && (
-          <View style={styles.photoPreviewWrap}>
-            <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="cover" />
-            <TouchableOpacity
-              style={styles.photoRemoveBtn}
-              onPress={() => setPhotoUri(undefined)}
-            >
-              <Ionicons name="close-circle" size={24} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
+        {photoUris.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoStrip}>
+            {photoUris.map((uri, idx) => (
+              <View key={uri + idx} style={styles.photoThumbWrap}>
+                <Image source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
+                <TouchableOpacity
+                  style={styles.photoRemoveBtn}
+                  onPress={() => setPhotoUris(prev => prev.filter((_, i) => i !== idx))}
+                >
+                  <Ionicons name="close-circle" size={22} color="#ffffff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
         )}
 
         <TouchableOpacity
@@ -370,10 +381,12 @@ export default function QuickLog() {
           <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>사진 첨부</Text>
-            <TouchableOpacity style={styles.sheetOption} onPress={launchCamera}>
-              <Ionicons name="camera-outline" size={22} color={Colors.primary} />
-              <Text style={styles.sheetOptionText}>카메라로 찍기</Text>
-            </TouchableOpacity>
+            {Platform.OS !== 'web' && (
+              <TouchableOpacity style={styles.sheetOption} onPress={launchCamera}>
+                <Ionicons name="camera-outline" size={22} color={Colors.primary} />
+                <Text style={styles.sheetOptionText}>카메라로 찍기</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.sheetOption} onPress={launchGallery}>
               <Ionicons name="image-outline" size={22} color={Colors.primary} />
               <Text style={styles.sheetOptionText}>앨범에서 가져오기</Text>
@@ -531,20 +544,23 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     textAlignVertical: 'top',
   },
-  photoPreviewWrap: {
-    position: 'relative',
-    borderRadius: 16,
-    overflow: 'hidden',
+  photoStrip: {
+    flexDirection: 'row',
+    marginTop: 4,
   },
-  photoPreview: {
-    width: '100%',
-    height: 200,
-    borderRadius: 16,
+  photoThumbWrap: {
+    position: 'relative',
+    marginRight: 10,
+  },
+  photoThumb: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
   },
   photoRemoveBtn: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 4,
+    right: 4,
   },
   sheetContainer: {
     position: 'absolute',

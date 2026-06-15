@@ -8,9 +8,11 @@ import {
   Pressable,
   Image,
   TextInput,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/colors';
@@ -34,7 +36,7 @@ export default function WorryDetail() {
   const { worryId } = useLocalSearchParams<{ worryId: string }>();
   const { getWorry, updateWorry, deleteWorry, worries, loaded } = useWorries();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showPhotoViewer, setShowPhotoViewer] = useState(false);
+  const [viewerUri, setViewerUri] = useState<string | null>(null);
   const deletingRef = useRef(false);
 
   const insets = useSafeAreaInsets();
@@ -66,6 +68,28 @@ export default function WorryDetail() {
     deletingRef.current = true;
     deleteWorry(worry.id);
     router.replace('/home');
+  };
+
+  const handleAddPhoto = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      allowsMultipleSelection: true,
+    });
+    if (!result.canceled) {
+      const newUris = result.assets.map(a => a.uri);
+      const current = worry.photoUris ?? [];
+      updateWorry(worry.id, { photoUris: [...current, ...newUris] });
+    }
+  };
+
+  const handleRemovePhoto = (uri: string) => {
+    const updated = (worry.photoUris ?? []).filter(u => u !== uri);
+    updateWorry(worry.id, { photoUris: updated.length > 0 ? updated : undefined });
   };
 
   const similarWorries = worries
@@ -115,22 +139,32 @@ export default function WorryDetail() {
               style={styles.memoInput}
             />
           </View>
-          {worry.photoUri && (
-            <TouchableOpacity
-              style={styles.photoWrap}
-              onPress={() => setShowPhotoViewer(true)}
-              activeOpacity={0.9}
-            >
-              <Image
-                source={{ uri: worry.photoUri }}
-                style={styles.photo}
-                resizeMode="cover"
-              />
-              <View style={styles.photoHint}>
-                <Ionicons name="expand-outline" size={16} color="#ffffff" />
-              </View>
-            </TouchableOpacity>
-          )}
+          {/* 사진 strip */}
+          <View style={styles.photoSection}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {(worry.photoUris ?? []).map((uri, idx) => (
+                <View key={uri + idx} style={styles.photoThumbWrap}>
+                  <TouchableOpacity onPress={() => setViewerUri(uri)} activeOpacity={0.85}>
+                    <Image source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
+                    <View style={styles.photoHint}>
+                      <Ionicons name="expand-outline" size={13} color="#ffffff" />
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.photoRemoveBtn}
+                    onPress={() => handleRemovePhoto(uri)}
+                    hitSlop={6}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#ffffff" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              <TouchableOpacity style={styles.photoAddBtn} onPress={handleAddPhoto}>
+                <Ionicons name="camera-outline" size={22} color={Colors.textMuted} />
+                <Text style={styles.photoAddText}>사진 추가</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
         </View>
 
         {/* 다시 분류하기 */}
@@ -236,17 +270,12 @@ export default function WorryDetail() {
       </Modal>
 
       {/* 사진 전체화면 뷰어 */}
-      <Modal visible={showPhotoViewer} transparent animationType="fade">
+      <Modal visible={viewerUri !== null} transparent animationType="fade">
         <View style={styles.viewerContainer}>
-          <Image
-            source={{ uri: worry.photoUri }}
-            style={styles.viewerImage}
-            resizeMode="contain"
-          />
-          <TouchableOpacity
-            style={styles.viewerClose}
-            onPress={() => setShowPhotoViewer(false)}
-          >
+          {viewerUri && (
+            <Image source={{ uri: viewerUri }} style={styles.viewerImage} resizeMode="contain" />
+          )}
+          <TouchableOpacity style={styles.viewerClose} onPress={() => setViewerUri(null)}>
             <Ionicons name="close" size={28} color="#ffffff" />
           </TouchableOpacity>
         </View>
@@ -346,29 +375,51 @@ const styles = StyleSheet.create({
     minHeight: 64,
     textAlignVertical: 'top',
   },
-  photoWrap: {
-    height: 220,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginTop: 4,
+  photoSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    paddingTop: 12,
   },
-  photo: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  photoThumbWrap: {
+    position: 'relative',
+    marginRight: 10,
+  },
+  photoThumb: {
+    width: 110,
+    height: 110,
+    borderRadius: 10,
   },
   photoHint: {
     position: 'absolute',
-    bottom: 10,
-    right: 10,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    bottom: 6,
+    right: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  photoRemoveBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+  },
+  photoAddBtn: {
+    width: 110,
+    height: 110,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#d1d5db',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#fafafa',
+  },
+  photoAddText: {
+    fontSize: 11,
+    color: Colors.textMuted,
   },
   viewerContainer: {
     flex: 1,

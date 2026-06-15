@@ -103,9 +103,9 @@ export default function Home() {
                     )}
                   </View>
                 </View>
-                {worry.photoUri && (
+                {worry.photoUris?.[0] && (
                   <Image
-                    source={{ uri: worry.photoUri }}
+                    source={{ uri: worry.photoUris[0] }}
                     style={styles.worryThumb}
                     resizeMode="cover"
                   />
