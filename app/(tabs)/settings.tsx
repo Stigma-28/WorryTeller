@@ -10,14 +10,16 @@ import {
   TextInput,
   Platform,
   KeyboardAvoidingView,
-  Image,
+  Alert,
 } from 'react-native';
 import { useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Share } from 'react-native';
 import { Colors } from '@/constants/colors';
 import { useWorries } from '@/context/WorryContext';
+import { filterThisMonth } from '@/utils/insights';
 
 const PRESET_MESSAGES = [
   '생각을 데이터로 털어내고 편히 주무세요',
@@ -47,18 +49,19 @@ function dateToTimeString(date: Date): string {
 }
 
 export default function Settings() {
-  const { worries, notificationsEnabled, setNotificationsEnabled, notificationTime, setNotificationTime } =
+  const { worries, notificationsEnabled, setNotificationsEnabled, notificationTime, setNotificationTime, customNotifMessages, addCustomNotifMessage, removeCustomNotifMessage, editCustomNotifMessage } =
     useWorries();
 
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showCustomMessage, setShowCustomMessage] = useState(false);
-  const [showAccountManagement, setShowAccountManagement] = useState(false);
   const [showDataExport, setShowDataExport] = useState(false);
 
   const [tempTime, setTempTime] = useState(notificationTime);
   const [tempTimeDate, setTempTimeDate] = useState(() => timeStringToDate(notificationTime));
-  const [selectedMessage, setSelectedMessage] = useState(0);
+  const allMessages = [...PRESET_MESSAGES, ...customNotifMessages];
+  const [selectedMessage, setSelectedMessage] = useState(PRESET_MESSAGES[0]);
   const [customMessage, setCustomMessage] = useState('');
+  const [editingMsg, setEditingMsg] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const [exportPeriod, setExportPeriod] = useState<'month' | 'all'>('all');
   const [exportFormat, setExportFormat] = useState<'pdf' | 'csv' | 'text'>('pdf');
@@ -66,6 +69,65 @@ export default function Settings() {
   const handleSaveTime = () => {
     setNotificationTime(Platform.OS === 'web' ? tempTime : dateToTimeString(tempTimeDate));
     setShowTimePicker(false);
+  };
+
+  const handleSaveMessage = () => {
+    const trimmed = customMessage.trim();
+    if (trimmed) {
+      if (editingMsg) {
+        editCustomNotifMessage(editingMsg, trimmed);
+        if (selectedMessage === editingMsg) setSelectedMessage(trimmed);
+        setEditingMsg(null);
+      } else {
+        addCustomNotifMessage(trimmed);
+        setSelectedMessage(trimmed);
+      }
+      setCustomMessage('');
+    }
+    setShowCustomMessage(false);
+  };
+
+  const handleExport = async () => {
+    if (exportFormat !== 'text') {
+      Alert.alert('안내', '현재는 텍스트(TEXT) 형식만 지원해요.');
+      return;
+    }
+    const exportWorries = exportPeriod === 'month' ? filterThisMonth(worries) : worries;
+    const header = `=== Worry Teller 걱정 기록 ===\n내보내기: ${new Date().toLocaleDateString('ko-KR')} · 총 ${exportWorries.length}건\n\n`;
+    const body = exportWorries.map((w, i) => {
+      const date = new Date(w.createdAt).toLocaleDateString('ko-KR');
+      const control = w.canChange === true ? '통제 가능' : w.canChange === false ? '통제 불가' : '미분류';
+      return `[${i + 1}] ${date}\n주제: ${w.topic} | 감정: ${w.emotion} | ${control}\n${w.text}`;
+    }).join('\n\n---\n\n');
+    const content = header + body;
+
+    // 웹: Blob 다운로드
+    if (Platform.OS === 'web') {
+      try {
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'worry_export.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch {
+        Alert.alert('오류', '내보내기에 실패했어요.');
+      }
+      setShowDataExport(false);
+      return;
+    }
+
+    // 네이티브: RN Share API (파일 시스템 권한 불필요)
+    try {
+      await Share.share({ message: content, title: '걱정 기록 내보내기' });
+    } catch (e) {
+      console.log('[Export] 오류:', e);
+      Alert.alert('오류', '내보내기에 실패했어요.');
+    }
+    setShowDataExport(false);
   };
 
   return (
@@ -121,17 +183,6 @@ export default function Settings() {
               onPress={() => setShowCustomMessage(true)}
             >
               <Text style={styles.settingLabel}>맞춤 알림 문구</Text>
-              <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            {/* 계정 관리 */}
-            <TouchableOpacity
-              style={styles.settingRow}
-              onPress={() => setShowAccountManagement(true)}
-            >
-              <Text style={styles.settingLabel}>계정 관리</Text>
               <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
             </TouchableOpacity>
 
@@ -195,31 +246,46 @@ export default function Settings() {
             <Text style={styles.modalTitle}>맞춤 알림 문구</Text>
             <Text style={styles.modalSub}>보낼 문구를 선택하거나 직접 입력해요</Text>
 
-            <View style={styles.messageList}>
-              {PRESET_MESSAGES.map((msg, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.messageOption,
-                    selectedMessage === index && styles.messageOptionActive,
-                  ]}
-                  onPress={() => setSelectedMessage(index)}
-                >
+            <ScrollView style={styles.messageScroll} showsVerticalScrollIndicator={false}>
+              {allMessages.map((msg, index) => {
+                const isCustom = index >= PRESET_MESSAGES.length;
+                return (
                   <View
+                    key={index}
                     style={[
-                      styles.radio,
-                      selectedMessage === index && styles.radioActive,
+                      styles.messageOption,
+                      selectedMessage === msg && styles.messageOptionActive,
+                      index > 0 && { marginTop: 8 },
                     ]}
                   >
-                    {selectedMessage === index && <View style={styles.radioDot} />}
+                    <TouchableOpacity style={styles.messageLeft} onPress={() => setSelectedMessage(msg)}>
+                      <View style={[styles.radio, selectedMessage === msg && styles.radioActive]}>
+                        {selectedMessage === msg && <View style={styles.radioDot} />}
+                      </View>
+                      <Text style={styles.messageText}>{msg}</Text>
+                    </TouchableOpacity>
+                    {isCustom && (
+                      <View style={styles.msgActions}>
+                        <TouchableOpacity onPress={() => { setEditingMsg(msg); setCustomMessage(msg); }}>
+                          <Ionicons name="pencil-outline" size={16} color={Colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => {
+                          removeCustomNotifMessage(msg);
+                          if (selectedMessage === msg) setSelectedMessage(PRESET_MESSAGES[0]);
+                        }}>
+                          <Ionicons name="trash-outline" size={16} color="#dc2626" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
-                  <Text style={styles.messageText}>{msg}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                );
+              })}
+            </ScrollView>
 
             <View style={styles.customInputSection}>
-              <Text style={styles.fieldLabel}>직접 입력</Text>
+              <Text style={styles.fieldLabel}>
+                {editingMsg ? '문구 수정' : '직접 입력 (저장하면 목록에 추가돼요)'}
+              </Text>
               <TextInput
                 value={customMessage}
                 onChangeText={text => text.length <= 40 && setCustomMessage(text)}
@@ -231,64 +297,12 @@ export default function Settings() {
               <Text style={styles.charCount}>{customMessage.length} / 40</Text>
             </View>
 
-            <TouchableOpacity
-              style={styles.sheetSaveBtn}
-              onPress={() => setShowCustomMessage(false)}
-            >
-              <Text style={styles.sheetSaveBtnText}>저장하기</Text>
+            <TouchableOpacity style={styles.sheetSaveBtn} onPress={handleSaveMessage}>
+              <Text style={styles.sheetSaveBtnText}>{editingMsg ? '수정 완료' : '저장하기'}</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
         </KeyboardAvoidingView>
-      </Modal>
-
-      {/* ── 계정 관리 바텀시트 ── */}
-      <Modal visible={showAccountManagement} transparent animationType="slide">
-        <Pressable
-          style={styles.overlayBottom}
-          onPress={() => setShowAccountManagement(false)}
-        >
-          <Pressable style={styles.bottomSheet} onPress={() => {}}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.modalTitle}>계정 관리</Text>
-
-            <View style={styles.accountCard}>
-              <View style={styles.accountAvatar}>
-                <Image
-                  source={require('@/assets/images/생각중.png')}
-                  style={{ width: '100%', height: '100%' }}
-                  resizeMode="contain"
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.accountName}>사용자</Text>
-                <Text style={styles.accountEmail}>user@email.com</Text>
-              </View>
-              <Text style={styles.editLink}>편집 &gt;</Text>
-            </View>
-
-            <View style={styles.accountList}>
-              {['닉네임 변경', '이메일 변경', '비밀번호 변경'].map((item, i) => (
-                <View key={item}>
-                  {i > 0 && <View style={styles.divider} />}
-                  <TouchableOpacity style={styles.settingRow}>
-                    <Text style={styles.settingLabel}>{item}</Text>
-                    <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-
-            <View style={styles.dangerZone}>
-              <TouchableOpacity>
-                <Text style={styles.dangerText}>로그아웃</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ marginTop: 8 }}>
-                <Text style={[styles.dangerText, { fontSize: 13 }]}>계정 삭제</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
       </Modal>
 
       {/* ── 데이터 내보내기 바텀시트 ── */}
@@ -345,10 +359,7 @@ export default function Settings() {
               </Text>
             </View>
 
-            <TouchableOpacity
-              style={styles.sheetSaveBtn}
-              onPress={() => setShowDataExport(false)}
-            >
+            <TouchableOpacity style={styles.sheetSaveBtn} onPress={handleExport}>
               <Text style={styles.sheetSaveBtnText}>내보내기</Text>
             </TouchableOpacity>
           </Pressable>
@@ -538,8 +549,19 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   // 맞춤 알림 문구
-  messageList: {
-    gap: 8,
+  messageScroll: {
+    maxHeight: 240,
+  },
+  messageLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  msgActions: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingLeft: 8,
   },
   messageOption: {
     flexDirection: 'row',
@@ -615,58 +637,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
-  },
-  // 계정 관리
-  accountCard: {
-    backgroundColor: '#f3f0f8',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  accountAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    backgroundColor: '#ffffff',
-    flexShrink: 0,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  accountName: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: Colors.textPrimary,
-  },
-  accountEmail: {
-    fontSize: 13,
-    color: Colors.textMuted,
-  },
-  editLink: {
-    fontSize: 13,
-    color: Colors.primary,
-    fontWeight: '500',
-  },
-  accountList: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-    overflow: 'hidden',
-  },
-  dangerZone: {
-    backgroundColor: '#fef2f2',
-    borderRadius: 16,
-    padding: 16,
-  },
-  dangerText: {
-    fontSize: 15,
-    color: '#dc2626',
-    fontWeight: '500',
   },
   // 데이터 내보내기
   periodRow: {

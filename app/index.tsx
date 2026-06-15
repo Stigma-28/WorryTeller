@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
@@ -10,14 +10,6 @@ export default function Splash() {
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: 48 + insets.bottom }]}>
       <View style={styles.content}>
-        <View style={styles.characterBox}>
-          <Image
-            source={require('@/assets/images/생각중.png')}
-            style={styles.characterImage}
-            resizeMode="contain"
-          />
-        </View>
-
         <Text style={styles.title}>Worry Teller</Text>
 
         <View style={styles.quoteBox}>
@@ -45,19 +37,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 24,
-  },
-  characterBox: {
-    width: 148,
-    height: 148,
-    backgroundColor: '#ffffff',
-    borderRadius: 74,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  characterImage: {
-    width: 130,
-    height: 130,
   },
   title: {
     fontSize: 36,

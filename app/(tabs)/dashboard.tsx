@@ -1,11 +1,12 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/colors';
 import { useWorries } from '@/context/WorryContext';
 import { filterThisMonth, filterToday, generateInsights } from '@/utils/insights';
+import { generateInsight, InsightInput } from '@/utils/generateInsight';
 
 type Period = 'month' | 'today';
 
@@ -24,8 +25,40 @@ export default function Dashboard() {
   const recurringCount = periodWorries.filter(w => w.recurring).length;
   const topicCount = new Set(periodWorries.map(w => w.topic)).size;
 
-  // 인사이트 문장들
+  // 인사이트 문장들 (폴백용)
   const insights = generateInsights(periodWorries, period);
+
+  // AI 인사이트
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
+  const [aiInsightLoading, setAiInsightLoading] = useState(false);
+
+  useEffect(() => {
+    if (periodWorries.length === 0) {
+      setAiInsight(null);
+      return;
+    }
+    const tCounts = periodWorries.reduce((acc, w) => {
+      acc[w.topic] = (acc[w.topic] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    const eCounts = periodWorries.reduce((acc, w) => {
+      acc[w.emotion] = (acc[w.emotion] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    const input: InsightInput = {
+      period,
+      totalCount: periodWorries.length,
+      topicCounts: tCounts,
+      emotionCounts: eCounts,
+      canChangeCount: periodWorries.filter(w => w.canChange === true).length,
+      cannotChangeCount: periodWorries.filter(w => w.canChange === false).length,
+    };
+    setAiInsightLoading(true);
+    generateInsight(input).then(result => {
+      setAiInsight(result);
+      setAiInsightLoading(false);
+    });
+  }, [period, worries]);
 
   // 카테고리 차트 — 선택된 기간 기준
   const topicCounts = periodWorries.reduce((acc, w) => {
@@ -115,16 +148,32 @@ export default function Dashboard() {
             <View style={styles.insightTitleRow}>
               <Ionicons name="sparkles" size={18} color="#ffffff" />
               <Text style={styles.insightTitle}>걱정 분석</Text>
-              <Text style={styles.insightPeriodBadge}>
-                {period === 'month' ? '이번 달' : '오늘'}
-              </Text>
+              {aiInsight ? (
+                <Text style={styles.insightAiBadge}>AI 분석</Text>
+              ) : (
+                <Text style={styles.insightPeriodBadge}>
+                  {period === 'month' ? '이번 달' : '오늘'}
+                </Text>
+              )}
             </View>
-            {insights.map((text, i) => (
-              <View key={i} style={styles.insightRow}>
+            {aiInsightLoading ? (
+              <View style={styles.insightRow}>
                 <Text style={styles.insightBullet}>✦</Text>
-                <Text style={styles.insightText}>{text}</Text>
+                <Text style={styles.insightText}>AI가 분석 중...</Text>
               </View>
-            ))}
+            ) : aiInsight ? (
+              <View style={styles.insightRow}>
+                <Text style={styles.insightBullet}>✦</Text>
+                <Text style={styles.insightText}>{aiInsight}</Text>
+              </View>
+            ) : (
+              insights.map((text, i) => (
+                <View key={i} style={styles.insightRow}>
+                  <Text style={styles.insightBullet}>✦</Text>
+                  <Text style={styles.insightText}>{text}</Text>
+                </View>
+              ))
+            )}
           </View>
 
           {/* 카테고리별 빈도 (이번 달) */}
@@ -321,6 +370,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 9999,
+  },
+  insightAiBadge: {
+    fontSize: 11,
+    color: Colors.primary,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 9999,
+    fontWeight: '600',
   },
   insightRow: {
     flexDirection: 'row',

@@ -37,6 +37,10 @@ interface WorryContextType {
   editTopicTag: (oldTag: string, newTag: string) => void;
   editEmotionTag: (oldTag: string, newTag: string) => void;
   loaded: boolean;
+  customNotifMessages: string[];
+  addCustomNotifMessage: (msg: string) => void;
+  removeCustomNotifMessage: (msg: string) => void;
+  editCustomNotifMessage: (oldMsg: string, newMsg: string) => void;
 }
 
 const WorryContext = createContext<WorryContextType | undefined>(undefined);
@@ -48,6 +52,7 @@ const CUSTOM_TOPICS_KEY = 'wt_custom_topics';
 const CUSTOM_EMOTIONS_KEY = 'wt_custom_emotions';
 const REMOVED_TOPICS_KEY = 'wt_removed_topics';
 const REMOVED_EMOTIONS_KEY = 'wt_removed_emotions';
+const CUSTOM_NOTIF_MESSAGES_KEY = 'wt_custom_notif_messages';
 
 // 시연용 시드 데이터 스위치 — GitHub 배포 전 false 로 변경
 // 프로덕션 빌드에서는 __DEV__ 가 자동으로 false 가 되어 빈 상태로 시작
@@ -353,13 +358,14 @@ export function WorryProvider({ children }: { children: ReactNode }) {
   const [customEmotions, setCustomEmotions] = useState<string[]>([]);
   const [removedTopics, setRemovedTopics] = useState<string[]>([]);
   const [removedEmotions, setRemovedEmotions] = useState<string[]>([]);
+  const [customNotifMessages, setCustomNotifMessages] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   // 앱 시작 시 저장된 데이터 로드
   useEffect(() => {
     const loadAll = async () => {
       try {
-        const [storedWorries, storedNotifEnabled, storedNotifTime, storedTopics, storedEmotions, storedRemovedTopics, storedRemovedEmotions] = await Promise.all([
+        const [storedWorries, storedNotifEnabled, storedNotifTime, storedTopics, storedEmotions, storedRemovedTopics, storedRemovedEmotions, storedNotifMsgs] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEY),
           AsyncStorage.getItem(NOTIF_ENABLED_KEY),
           AsyncStorage.getItem(NOTIF_TIME_KEY),
@@ -367,6 +373,7 @@ export function WorryProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(CUSTOM_EMOTIONS_KEY),
           AsyncStorage.getItem(REMOVED_TOPICS_KEY),
           AsyncStorage.getItem(REMOVED_EMOTIONS_KEY),
+          AsyncStorage.getItem(CUSTOM_NOTIF_MESSAGES_KEY),
         ]);
 
         if (storedWorries) {
@@ -389,6 +396,7 @@ export function WorryProvider({ children }: { children: ReactNode }) {
         if (storedEmotions) setCustomEmotions(JSON.parse(storedEmotions));
         if (storedRemovedTopics) setRemovedTopics(JSON.parse(storedRemovedTopics));
         if (storedRemovedEmotions) setRemovedEmotions(JSON.parse(storedRemovedEmotions));
+        if (storedNotifMsgs) setCustomNotifMessages(JSON.parse(storedNotifMsgs));
       } catch {
         setWorries(getSampleWorries());
       }
@@ -549,6 +557,26 @@ export function WorryProvider({ children }: { children: ReactNode }) {
 
   const getWorry = (id: string) => worries.find(w => w.id === id);
 
+  const addCustomNotifMessage = (msg: string) => {
+    const trimmed = msg.trim();
+    if (!trimmed) return;
+    setCustomNotifMessages(prev => prev.includes(trimmed) ? prev : [...prev, trimmed]);
+  };
+
+  const removeCustomNotifMessage = (msg: string) => {
+    setCustomNotifMessages(prev => prev.filter(m => m !== msg));
+  };
+
+  const editCustomNotifMessage = (oldMsg: string, newMsg: string) => {
+    const trimmed = newMsg.trim();
+    if (!trimmed) return;
+    setCustomNotifMessages(prev => prev.map(m => m === oldMsg ? trimmed : m));
+  };
+
+  useEffect(() => {
+    if (loaded) AsyncStorage.setItem(CUSTOM_NOTIF_MESSAGES_KEY, JSON.stringify(customNotifMessages));
+  }, [customNotifMessages, loaded]);
+
   return (
     <WorryContext.Provider value={{
       worries, addWorry, updateWorry, deleteWorry, getWorry,
@@ -556,7 +584,7 @@ export function WorryProvider({ children }: { children: ReactNode }) {
       notificationTime, setNotificationTime,
       customTopics, customEmotions, addCustomTopic, addCustomEmotion,
       removedTopics, removedEmotions, removeTopicTag, removeEmotionTag, editTopicTag, editEmotionTag,
-      loaded,
+      loaded, customNotifMessages, addCustomNotifMessage, removeCustomNotifMessage, editCustomNotifMessage,
     }}>
       {children}
     </WorryContext.Provider>
