@@ -1,5 +1,5 @@
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 export interface KeywordResult {
@@ -54,11 +54,18 @@ ${activeEmotions.join(', ')}
     });
     clearTimeout(timeoutId);
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => '');
+      console.log('[AI] HTTP', response.status, errBody);
+      return null;
+    }
 
     const data = await response.json();
     const raw: string | undefined = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!raw) return null;
+    if (!raw) {
+      console.log('[AI] 응답 파싱 실패:', JSON.stringify(data));
+      return null;
+    }
 
     const parsed = JSON.parse(raw);
 
@@ -74,8 +81,9 @@ ${activeEmotions.join(', ')}
     if (!emotion || !activeEmotions.includes(emotion)) return null;
 
     return { keywords, category, emotion };
-  } catch {
+  } catch (e) {
     clearTimeout(timeoutId);
+    console.log('[AI] catch:', e);
     return null;
   }
 }
