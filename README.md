@@ -20,7 +20,7 @@ BeomJun Wei · JaeEun Lee · JiMin Lee
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/[깃허브아이디]/[저장소이름].git
+https://github.com/Stigma-28/WorryTeller.git
 cd WorryTeller
 ```
 
