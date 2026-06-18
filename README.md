@@ -1,50 +1,71 @@
-# Welcome to your Expo app 👋
+# Worry Teller 🔮
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+> 걱정을 기록하고, 분류하고, 시각화해서 내 걱정 패턴을 한눈에 파악하는 앱
 
-## Get started
+Team 05 Big Os | Mobile Computing Final Project  
+BeomJun Wei · JaeEun Lee · JiMin Lee
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## Tech Stack
 
-2. Start the app
+- **Expo** (React Native)
+- **Figma** (UI/UX Design)
+- **Google Gemini API 2.5 Flash-Lite** (AI keyword extraction & insight)
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## Getting Started
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### 1. Clone the repository
 
 ```bash
-npm run reset-project
+git clone https://github.com/[깃허브아이디]/[저장소이름].git
+cd WorryTeller
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Install dependencies
 
-## Learn more
+```bash
+npm install
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+### 3. Set up Gemini API Key
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+AI 기능(키워드 추출, 패턴 인사이트)을 사용하려면 Gemini API 키가 필요합니다.
 
-## Join the community
+**키 발급 방법:**
+1. [Google AI Studio](https://aistudio.google.com) 접속
+2. 구글 계정으로 로그인
+3. 좌측 또는 상단 **"Get API key"** 클릭
+4. **"Create API key"** → 프로젝트 선택 후 생성
+5. 발급된 키 복사 (`AIza...`로 시작)
 
-Join our community of developers creating universal apps.
+**키 설정:**
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+프로젝트 루트(`WorryTeller/`)에 `.env` 파일을 새로 만들고 아래 내용 입력:
+
+```
+EXPO_PUBLIC_GEMINI_API_KEY=여기에_발급받은_키_붙여넣기
+```
+
+> `.env.example` 파일을 참고하세요.
+
+### 4. Start the app
+
+```bash
+npx expo start
+```
+
+터미널에 QR 코드가 뜨면:
+- **iOS**: 카메라 앱으로 QR 코드 스캔
+- **Android**: Expo Go 앱으로 QR 코드 스캔
+- **Web**: 터미널에서 `w` 키 입력
+
+---
+
+## Notes
+
+- API 키 없이도 앱 실행은 가능하지만, AI 기능(걱정 들여다보기, 패턴 인사이트)은 동작하지 않습니다.
+- Gemini API 무료 티어 기준 일일 호출 횟수 제한이 있습니다. 시연 직전에 키를 새로 발급받는 것을 권장합니다.
+- `.env` 파일은 보안상 깃허브에 업로드되지 않습니다.
